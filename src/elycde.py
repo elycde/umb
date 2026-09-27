@@ -162,7 +162,7 @@ def get_remote_lua_scripts(repo, branch="main"):
     except Exception as e:
         log_debug(f"get_remote_lua_scripts error: {e}")
 
-    default_scripts = ["MapDrawer.lua", "VoiceTrashTalk.lua"]
+    default_scripts = ["MapDrawer.lua", "Visuals.lua", "VoiceTrashTalk.lua"]
     for s in default_scripts:
         if s not in scripts:
             scripts.append(s)
@@ -632,8 +632,9 @@ def main():
 
         # Initial fast check: download missing scripts right away
         map_script = os.path.join(SCRIPTS_DIR, "MapDrawer.lua")
+        vis_script = os.path.join(SCRIPTS_DIR, "Visuals.lua")
         vtt_script = os.path.join(SCRIPTS_DIR, "VoiceTrashTalk.lua")
-        if not os.path.exists(map_script) or not os.path.exists(vtt_script):
+        if not os.path.exists(map_script) or not os.path.exists(vis_script) or not os.path.exists(vtt_script):
             log_debug("Initial setup: downloading Lua bundle from GitHub...")
             try:
                 check_for_updates(force=True)
