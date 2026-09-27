@@ -27,7 +27,7 @@ LOG_FILE = os.path.join(BASE_DIR, "elycde.log")
 CONFIG_FILE = os.path.join(BASE_DIR, "config.json")
 
 DEFAULT_CONFIG = {
-    "repo": "elycde/elycde-scripts",
+    "repo": "elycde/umb",
     "branch": "main",
     "auto_update": True,
     "last_commit": ""
