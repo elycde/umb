@@ -1,8 +1,19 @@
+# Python & PyInstaller
+__pycache__/
+*.py[cod]
+*$py.class
 *.log
 *.new
 updater.bat
-__pycache__/
 build/
 dist/
+*.spec.bak
+
+# IDE & OS
 .vscode/
 .idea/
+*.suo
+*.user
+
+# Binary artifacts (built and published by GitHub Actions Releases)
+*.exe

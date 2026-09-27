@@ -1,0 +1,4 @@
+numpy>=1.26.0
+sounddevice>=0.4.6
+miniaudio>=1.59
+pyinstaller>=6.0.0

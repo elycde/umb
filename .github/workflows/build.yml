@@ -1,0 +1,64 @@
+name: Build and Release elycde
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build & Release elycde.exe
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: 'src/requirements.txt'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r src/requirements.txt
+
+      - name: Build executable with PyInstaller
+        run: |
+          cd src
+          pyinstaller --clean -y elycde.spec
+
+      - name: Determine Release Tag
+        id: vars
+        shell: bash
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=v1.0.${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.vars.outputs.tag }}
+          name: elycde ${{ steps.vars.outputs.tag }}
+          body: |
+            Automated build from commit ${{ github.sha }}
+            
+            ### Included:
+            * `elycde.exe` — standalone bundle installer & audio companion for Umbrella Dota 2
+            * Syncs scripts from `lua/` (`MapDrawer.lua`, `VoiceTrashTalk.lua`)
+          files: src/dist/elycde.exe
+          make_latest: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
