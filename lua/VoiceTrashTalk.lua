@@ -70,7 +70,6 @@ end
 -- Forward declarations
 local UpdateServerStatus = function() end
 local RefreshSoundsList = function(cb) end
-local CheckUpdates = function() end
 local KillServerExe = function() end
 local StopAudioAndVoice = function() end
 local OpenSoundsFolder = function() end
@@ -125,11 +124,6 @@ local ui_cable_status = group_server:Label("Микрофон: Поиск...")
 local ui_btn_check = group_server:Button("Проверить статус", function()
     UpdateServerStatus()
 end)
-
-local ui_btn_update = group_server:Button("🔄 Обновить скрипты (GitHub)", function()
-    CheckUpdates()
-end)
-ui_btn_update:ToolTip("Проверяет и скачивает обновления elycde.exe и скриптов с GitHub")
 
 local ui_btn_kill = group_server:Button("Убить процесс сервера", function()
     KillServerExe()
@@ -283,25 +277,6 @@ RefreshSoundsList = function(callback)
         end
 
         if callback then callback() end
-    end)
-end
-
-CheckUpdates = function()
-    if ui_server_status then
-        pcall(function() ui_server_status:Name("Сервер: Проверка GitHub...") end)
-    end
-    HTTP.Request("GET", SERVER_URL .. "/update", {}, function(res)
-        if not res or not res.response then
-            if ui_server_status then
-                pcall(function() ui_server_status:Name("Сервер: Оффлайн (запустите elycde.exe)") end)
-            end
-            return
-        end
-        local msg = res.response:match('"message"%s*:%s*"([^"]+)"') or "Готово"
-        if ui_server_status then
-            pcall(function() ui_server_status:Name(msg) end)
-        end
-        RefreshSoundsList()
     end)
 end
 
