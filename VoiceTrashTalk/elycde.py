@@ -17,14 +17,16 @@ import miniaudio
 PORT = 8765
 
 if getattr(sys, 'frozen', False):
-    BASE_DIR = os.path.dirname(sys.executable)
+    APP_DIR = os.path.dirname(sys.executable)
 else:
-    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    APP_DIR = os.path.dirname(os.path.abspath(__file__))
 
-PARENT_DIR = os.path.dirname(BASE_DIR)
-SOUNDS_DIR = os.path.join(BASE_DIR, "sounds")
-LOG_FILE = os.path.join(BASE_DIR, "elycde.log")
-CONFIG_FILE = os.path.join(BASE_DIR, "config.json")
+ROOT_DIR = APP_DIR
+SCRIPTS_DIR = os.path.join(APP_DIR, "scripts")
+VTT_DIR = os.path.join(SCRIPTS_DIR, "VoiceTrashTalk")
+SOUNDS_DIR = os.path.join(VTT_DIR, "sounds")
+CONFIG_FILE = os.path.join(APP_DIR, "config.json")
+LOG_FILE = os.path.join(APP_DIR, "elycde.log")
 
 DEFAULT_CONFIG = {
     "repo": "elycde/umb",
@@ -32,6 +34,65 @@ DEFAULT_CONFIG = {
     "auto_update": True,
     "last_commit": ""
 }
+
+def init_environment():
+    global ROOT_DIR, SCRIPTS_DIR, VTT_DIR, SOUNDS_DIR, CONFIG_FILE, LOG_FILE
+
+    # Detect if APP_DIR is Umbrella root (contains UmbrellaLoader.exe, LoaderKernel.dll, configs, or scripts)
+    is_umbrella_root = (
+        os.path.exists(os.path.join(APP_DIR, "UmbrellaLoader.exe")) or
+        os.path.exists(os.path.join(APP_DIR, "LoaderKernel.dll")) or
+        os.path.exists(os.path.join(APP_DIR, "configs")) or
+        (os.path.exists(os.path.join(APP_DIR, "scripts")) and os.path.basename(APP_DIR).lower() != "voicetrashtalk")
+    )
+
+    if is_umbrella_root:
+        ROOT_DIR = APP_DIR
+        SCRIPTS_DIR = os.path.join(ROOT_DIR, "scripts")
+        VTT_DIR = os.path.join(SCRIPTS_DIR, "VoiceTrashTalk")
+        SOUNDS_DIR = os.path.join(VTT_DIR, "sounds")
+    elif os.path.basename(APP_DIR).lower() == "voicetrashtalk":
+        VTT_DIR = APP_DIR
+        SCRIPTS_DIR = os.path.dirname(VTT_DIR)
+        ROOT_DIR = os.path.dirname(SCRIPTS_DIR)
+        SOUNDS_DIR = os.path.join(VTT_DIR, "sounds")
+    elif os.path.basename(APP_DIR).lower() == "scripts":
+        SCRIPTS_DIR = APP_DIR
+        ROOT_DIR = os.path.dirname(SCRIPTS_DIR)
+        VTT_DIR = os.path.join(SCRIPTS_DIR, "VoiceTrashTalk")
+        SOUNDS_DIR = os.path.join(VTT_DIR, "sounds")
+    else:
+        parent = os.path.dirname(APP_DIR)
+        if os.path.basename(parent).lower() == "scripts":
+            SCRIPTS_DIR = parent
+            ROOT_DIR = os.path.dirname(SCRIPTS_DIR)
+            VTT_DIR = os.path.join(SCRIPTS_DIR, "VoiceTrashTalk")
+            SOUNDS_DIR = os.path.join(VTT_DIR, "sounds")
+        else:
+            ROOT_DIR = APP_DIR
+            SCRIPTS_DIR = os.path.join(ROOT_DIR, "scripts")
+            VTT_DIR = os.path.join(SCRIPTS_DIR, "VoiceTrashTalk")
+            SOUNDS_DIR = os.path.join(VTT_DIR, "sounds")
+
+    # Automatically create all required directories
+    try:
+        os.makedirs(ROOT_DIR, exist_ok=True)
+        os.makedirs(SCRIPTS_DIR, exist_ok=True)
+        os.makedirs(VTT_DIR, exist_ok=True)
+        os.makedirs(SOUNDS_DIR, exist_ok=True)
+    except Exception:
+        pass
+
+    if os.path.exists(os.path.join(APP_DIR, "config.json")):
+        CONFIG_FILE = os.path.join(APP_DIR, "config.json")
+    elif os.path.exists(os.path.join(VTT_DIR, "config.json")):
+        CONFIG_FILE = os.path.join(VTT_DIR, "config.json")
+    else:
+        CONFIG_FILE = os.path.join(APP_DIR, "config.json")
+
+    LOG_FILE = os.path.join(APP_DIR, "elycde.log")
+
+init_environment()
 
 def log_debug(msg):
     try:
@@ -83,7 +144,7 @@ def download_url(url, timeout=15):
 
 def check_for_updates(force=False):
     cfg = load_config()
-    repo = cfg.get("repo", "elycde/elycde-scripts").strip()
+    repo = cfg.get("repo", "elycde/umb").strip()
     branch = cfg.get("branch", "main").strip()
     if not repo:
         return False, [], "Репозиторий не указан в config.json"
@@ -104,13 +165,17 @@ def check_for_updates(force=False):
         pass
 
     last_sha = cfg.get("last_commit", "")
+    vtt_local = os.path.join(SCRIPTS_DIR, "VoiceTrashTalk.lua")
+    ely_local = os.path.join(SCRIPTS_DIR, "elycde.lua")
+
+    # If commit matches and all files exist, no need to redownload
     if not force and remote_sha and last_sha and remote_sha == last_sha:
-        log_debug(f"Already on latest commit: {remote_sha[:7]}")
-        return False, [], "Установлена последняя версия!"
+        if os.path.exists(vtt_local) and os.path.exists(ely_local):
+            log_debug(f"Already on latest commit: {remote_sha[:7]}")
+            return False, [], "Установлена последняя версия!"
 
     # 1. Update VoiceTrashTalk.lua
     vtt_url = f"https://raw.githubusercontent.com/{repo}/{branch}/VoiceTrashTalk.lua"
-    vtt_local = os.path.join(PARENT_DIR, "VoiceTrashTalk.lua")
     content = download_url(vtt_url)
     if content and len(content) > 100:
         local_hash = get_file_hash(vtt_local)
@@ -120,13 +185,12 @@ def check_for_updates(force=False):
                 with open(vtt_local, "wb") as f:
                     f.write(content)
                 updated_files.append("VoiceTrashTalk.lua")
-                log_debug("Updated VoiceTrashTalk.lua from GitHub")
+                log_debug(f"Updated VoiceTrashTalk.lua in {SCRIPTS_DIR}")
             except Exception as e:
                 log_debug(f"Failed to write VoiceTrashTalk.lua: {e}")
 
     # 2. Update elycde.lua (Map Drawer)
     ely_url = f"https://raw.githubusercontent.com/{repo}/{branch}/elycde.lua"
-    ely_local = os.path.join(PARENT_DIR, "elycde.lua")
     content = download_url(ely_url)
     if content and len(content) > 100:
         local_hash = get_file_hash(ely_local)
@@ -136,27 +200,44 @@ def check_for_updates(force=False):
                 with open(ely_local, "wb") as f:
                     f.write(content)
                 updated_files.append("elycde.lua")
-                log_debug("Updated elycde.lua from GitHub")
+                log_debug(f"Updated elycde.lua in {SCRIPTS_DIR}")
             except Exception as e:
                 log_debug(f"Failed to write elycde.lua: {e}")
 
-    # 3. Update elycde.exe (Self-update)
+    # 3. Default sounds (1.wav, 2.wav)
+    for snd in ["1.wav", "2.wav"]:
+        snd_local = os.path.join(SOUNDS_DIR, snd)
+        if not os.path.exists(snd_local):
+            snd_url = f"https://raw.githubusercontent.com/{repo}/{branch}/VoiceTrashTalk/sounds/{snd}"
+            snd_content = download_url(snd_url)
+            if snd_content and len(snd_content) > 1000:
+                try:
+                    with open(snd_local, "wb") as f:
+                        f.write(snd_content)
+                    updated_files.append(f"sounds/{snd}")
+                    log_debug(f"Downloaded missing default sound: {snd}")
+                except Exception as e:
+                    log_debug(f"Failed to write sound {snd}: {e}")
+
+    # 4. Update elycde.exe (Self-update)
     if getattr(sys, 'frozen', False):
-        exe_url = f"https://raw.githubusercontent.com/{repo}/{branch}/VoiceTrashTalk/elycde.exe"
         exe_local = sys.executable
-        content = download_url(exe_url, timeout=30)
-        if content and len(content) > 1000000:
+        exe_content = download_url(f"https://raw.githubusercontent.com/{repo}/{branch}/elycde.exe", timeout=30)
+        if not exe_content or len(exe_content) < 1000000:
+            exe_content = download_url(f"https://raw.githubusercontent.com/{repo}/{branch}/VoiceTrashTalk/elycde.exe", timeout=30)
+
+        if exe_content and len(exe_content) > 1000000:
             local_hash = get_file_hash(exe_local)
-            remote_hash = hashlib.sha256(content).hexdigest()
+            remote_hash = hashlib.sha256(exe_content).hexdigest()
             if local_hash != remote_hash:
                 new_exe = exe_local + ".new"
                 try:
                     with open(new_exe, "wb") as f:
-                        f.write(content)
+                        f.write(exe_content)
                     exe_updated = True
                     log_debug("Downloaded new elycde.exe. Spawning self-updater...")
 
-                    updater_bat = os.path.join(BASE_DIR, "updater.bat")
+                    updater_bat = os.path.join(os.path.dirname(exe_local), "updater.bat")
                     with open(updater_bat, "w", encoding="utf-8") as bf:
                         bf.write(f'''@echo off
 timeout /t 1 /nobreak >nul
@@ -170,7 +251,7 @@ move /y "{new_exe}" "{exe_local}" >nul
 start "" "{exe_local}"
 del "%~f0" >nul 2>&1
 ''')
-                    subprocess.Popen(["cmd.exe", "/c", updater_bat], cwd=BASE_DIR, creationflags=0x08000000 if os.name == 'nt' else 0)
+                    subprocess.Popen(["cmd.exe", "/c", updater_bat], cwd=os.path.dirname(exe_local), creationflags=0x08000000 if os.name == 'nt' else 0)
                     time.sleep(0.5)
                     os._exit(0)
                 except Exception as e:
@@ -474,8 +555,10 @@ def show_startup_dialog():
             cable = player.cable_name or "CABLE Input"
             text = (
                 "✅ VB-Audio Virtual Cable успешно обнаружен!\n\n"
-                f"• Выход в Доту (микрофон): {cable}\n"
+                f"• Микрофон в Доту: {cable}\n"
                 f"• Наушники (для себя): {speaker}\n\n"
+                f"• Папка скриптов: {SCRIPTS_DIR}\n"
+                f"• Папка звуков: {SOUNDS_DIR}\n\n"
                 "Сервер работает в фоне на 127.0.0.1:8765.\n\n"
                 "Напоминание для Доты 2:\n"
                 "В 'Настройки' -> 'Звук' -> 'Устройство записи' (микрофон)\n"
@@ -500,8 +583,7 @@ def show_startup_dialog():
         log_debug(f"show_startup_dialog error: {e}")
 
 def main():
-    if not os.path.exists(SOUNDS_DIR):
-        os.makedirs(SOUNDS_DIR, exist_ok=True)
+    init_environment()
     
     # Check if already running
     import socket
@@ -523,17 +605,29 @@ def main():
 
     try:
         log_debug("Starting elycde server on port 8765...")
+        log_debug(f"Environment: root='{ROOT_DIR}', scripts='{SCRIPTS_DIR}', vtt='{VTT_DIR}', sounds='{SOUNDS_DIR}'")
+
+        # Initial check: if scripts are missing in scripts folder, download them right away!
+        vtt_script = os.path.join(SCRIPTS_DIR, "VoiceTrashTalk.lua")
+        ely_script = os.path.join(SCRIPTS_DIR, "elycde.lua")
+        if not os.path.exists(vtt_script) or not os.path.exists(ely_script):
+            log_debug("Scripts missing on startup. Running initial download...")
+            try:
+                check_for_updates(force=True)
+            except Exception as ex:
+                log_debug(f"Initial download error: {ex}")
+
         server = ReusableThreadingServer(("127.0.0.1", PORT), ElycdeHandler)
         log_debug("Server successfully listening on 127.0.0.1:8765")
         
         # Diagnostic dialog
         threading.Thread(target=show_startup_dialog, daemon=True).start()
         
-        # Background auto-update check after 3 seconds
+        # Background auto-update check after 2 seconds
         cfg = load_config()
         if cfg.get("auto_update", True):
             def auto_update_worker():
-                time.sleep(3.0)
+                time.sleep(2.0)
                 try:
                     check_for_updates(force=False)
                 except Exception as ex:
