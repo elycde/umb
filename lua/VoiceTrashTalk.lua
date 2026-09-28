@@ -11,8 +11,9 @@ local VoiceTrashTalk = {}
 local vtt_tab = Menu.Create("Scripts", "elycde", "Voice TrashTalk")
 vtt_tab:Icon("\u{f028}")
 
-local side_left = (Enum and Enum.GroupSide and Enum.GroupSide.Left) or nil
-local side_right = (Enum and Enum.GroupSide and Enum.GroupSide.Right) or nil
+local side_left = (Enum and Enum.GroupSide and Enum.GroupSide.Left) or 1
+local side_right = (Enum and Enum.GroupSide and Enum.GroupSide.Right) or 2
+local side_full = (Enum and Enum.GroupSide and Enum.GroupSide.FullWidth) or 3
 
 -- Подвкладки
 local tab_events = vtt_tab:Create("События и Звуки")
@@ -437,8 +438,8 @@ ui_vol_ingame:ToolTip("Регулирует консольную команду 
 local ui_voicerecord_delay = group_volume:Slider("Буфер удержания микрофона (мс)", 50, 1500, 300, "%d мс")
 ui_voicerecord_delay:ToolTip("Дополнительное время удержания +voicerecord после окончания трека, чтобы звук не обрывался")
 
--- Левая колонка: Инструкция
-local group_guide = tab_volume:Create("Инструкция", side_left)
+-- Блок на всю ширину: Инструкция
+local group_guide = tab_volume:Create("Инструкция", side_full)
 group_guide:Label("1. Запустите программу сервера elycde.exe\n2. В звуке Доты 2 выберите: CABLE Output (микрофон)\n3. Если нет звука в игре: проверьте статус сервера во вкладке Настройки.")
 
 -- Правая колонка: Тестирование
