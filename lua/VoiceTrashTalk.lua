@@ -439,16 +439,10 @@ ui_voicerecord_delay:ToolTip("Дополнительное время удерж
 
 -- Левая колонка: Инструкция
 local group_guide = tab_volume:Create("Инструкция", side_left)
-group_guide:Label("1. Запустите программу")
-group_guide:Label("сервера \x07{primary}elycde.exe\x07{primary_widgets_text}")
-group_guide:Label("2. В звуке Доты 2 выберите:")
-group_guide:Label("\x07{primary}CABLE Output (микрофон)\x07{primary_widgets_text}")
-group_guide:Label("3. Если нет звука в игре:")
-group_guide:Label("\x07{primary}проверьте статус сервера\x07{primary_widgets_text}")
-group_guide:Label("во вкладке Настройки.")
+group_guide:Label("1. Запустите программу сервера elycde.exe\n2. В звуке Доты 2 выберите: CABLE Output (микрофон)\n3. Если нет звука в игре: проверьте статус сервера во вкладке Настройки.")
 
 -- Правая колонка: Тестирование
-local group_tests = tab_volume:Create("Тестирование звуков \u{f071}", side_right)
+local group_tests = tab_volume:Create("Тестирование звуков", side_right)
 
 local ui_btn_test_kill = group_tests:Button("Тест: Звук при убийстве (Kill)", function()
     PlayVoiceSound("kill", "all")

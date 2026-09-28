@@ -77,8 +77,7 @@ end
 local ui_btn_update = group_update:Button("🔄 Обновить скрипты (GitHub)", function()
     CheckUpdates()
 end)
-ui_btn_update:Unsafe(true)
-ui_btn_update:ToolTip("Внимание: требуется запущенный сервер elycde.exe!\nПроверяет и скачивает обновления elycde.exe и скриптов с GitHub.")
+ui_btn_update:ToolTip("Проверяет и скачивает обновления elycde.exe и скриптов с GitHub.")
 
 local ui_btn_repo = group_update:Button("🌐 Открыть GitHub репозиторий", function()
     OpenBrowserUrl(GITHUB_REPO)
@@ -149,8 +148,7 @@ local ui_btn_kill = group_server:Button("Убить процесс сервер�
         end
     end)
 end)
-ui_btn_kill:Unsafe(true)
-ui_btn_kill:ToolTip("Внимание: требуется запущенный сервер elycde.exe!\nЗавершает работу фонового процесса сервера.")
+ui_btn_kill:ToolTip("Завершает работу фонового процесса сервера.")
 
 -- Начальный опрос
 UpdateServerStatus()
