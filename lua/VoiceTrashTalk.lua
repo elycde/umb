@@ -425,8 +425,8 @@ ui_btn_open_folder:ToolTip("Открывает папку sounds в Провод
 
 -- Верхний блок на всю ширину: Инструкция
 local group_guide = tab_volume:Create("Инструкция", side_full)
-local guide_text = "\x07{primary_widgets_text}1. Запустите программу сервера \x07{primary}elycde.exe\x07{primary_widgets_text}.\n\n" ..
-                   "2. В настройках звука Доты 2 выберите: \x07{primary}CABLE Output (микрофон)\x07{primary_widgets_text}.\n\n" ..
+local guide_text = "\x07{primary_widgets_text}1. Запустите программу сервера \x07{primary}elycde.exe\x07{primary_widgets_text}.\n" ..
+                   "2. В настройках звука Доты 2 выберите: \x07{primary}CABLE Output (микрофон)\x07{primary_widgets_text}.\n" ..
                    "3. Если нет звука в игре: \x07{primary}проверьте статус сервера\x07{primary_widgets_text} во вкладке Настройки."
 group_guide:Label(guide_text)
 
