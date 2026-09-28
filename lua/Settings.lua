@@ -56,15 +56,32 @@ local function CheckUpdates()
     end)
 end
 
+local function url_encode(str)
+    if not str then return "" end
+    str = tostring(str)
+    return (str:gsub("([^%w%-%_%.%~])", function(c)
+        return string.format("%%%02X", string.byte(c))
+    end))
+end
+
+local function OpenBrowserUrl(url)
+    pcall(function()
+        Engine.RunScript(string.format("$.DispatchEvent('ExternalBrowserGoToURL', '%s')", url))
+    end)
+    HTTP.Request("GET", SERVER_URL .. "/open_url?url=" .. url_encode(url), {}, function() end)
+    pcall(function()
+        os.execute('cmd.exe /c start "" "' .. url .. '"')
+    end)
+end
+
 local ui_btn_update = group_update:Button("🔄 Обновить скрипты (GitHub)", function()
     CheckUpdates()
 end)
-ui_btn_update:ToolTip("Проверяет и скачивает обновления elycde.exe и всех скриптов из папки lua/ с GitHub")
+ui_btn_update:Unsafe(true)
+ui_btn_update:ToolTip("Внимание: требуется запущенный сервер elycde.exe!\nПроверяет и скачивает обновления elycde.exe и скриптов с GitHub.")
 
 local ui_btn_repo = group_update:Button("🌐 Открыть GitHub репозиторий", function()
-    HTTP.Request("GET", SERVER_URL .. "/open_url?url=" .. GITHUB_REPO, {}, function() end)
-    pcall(function() os.execute('cmd.exe /c start "" "' .. GITHUB_REPO .. '"') end)
-    pcall(function() os.execute('explorer "' .. GITHUB_REPO .. '"') end)
+    OpenBrowserUrl(GITHUB_REPO)
 end)
 ui_btn_repo:ToolTip("Открыть страницу https://github.com/elycde/umb в браузере")
 
@@ -132,6 +149,8 @@ local ui_btn_kill = group_server:Button("Убить процесс сервер�
         end
     end)
 end)
+ui_btn_kill:Unsafe(true)
+ui_btn_kill:ToolTip("Внимание: требуется запущенный сервер elycde.exe!\nЗавершает работу фонового процесса сервера.")
 
 -- Начальный опрос
 UpdateServerStatus()

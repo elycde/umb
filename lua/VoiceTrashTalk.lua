@@ -126,6 +126,18 @@ local function url_encode(str)
     end))
 end
 
+local GITHUB_REPO = "https://github.com/elycde/umb"
+
+local function OpenBrowserUrl(url)
+    pcall(function()
+        Engine.RunScript(string.format("$.DispatchEvent('ExternalBrowserGoToURL', '%s')", url))
+    end)
+    HTTP.Request("GET", SERVER_URL .. "/open_url?url=" .. url_encode(url), {}, function() end)
+    pcall(function()
+        os.execute('cmd.exe /c start "" "' .. url .. '"')
+    end)
+end
+
 local DEFAULT_SOUND_PRESETS = {
     "1.wav",
     "2.wav",
@@ -391,13 +403,21 @@ local ui_btn_refresh_sounds = group_sound_manage:Button("Обновить спи
     RefreshSoundsList()
 end)
 ui_btn_refresh_sounds:Icon("\u{f2f9}")
-ui_btn_refresh_sounds:ToolTip("Сканирует папку sounds и обновляет списки файлов во всех селекторах")
+ui_btn_refresh_sounds:Unsafe(true)
+ui_btn_refresh_sounds:ToolTip("Внимание: требуется запущенный сервер elycde.exe!\nСканирует папку sounds и обновляет списки файлов во всех селекторах.")
 
 local ui_btn_open_folder = group_sound_manage:Button("Открыть папку sounds", function()
     OpenSoundsFolder()
 end)
 ui_btn_open_folder:Icon("\u{f07b}")
-ui_btn_open_folder:ToolTip("Открывает папку sounds в Проводнике Windows для добавления своих треков")
+ui_btn_open_folder:Unsafe(true)
+ui_btn_open_folder:ToolTip("Внимание: требуется запущенный сервер elycde.exe!\nОткрывает папку sounds в Проводнике Windows для добавления своих треков.")
+
+local ui_btn_open_repo = group_sound_manage:Button("Открыть GitHub репозиторий", function()
+    OpenBrowserUrl(GITHUB_REPO)
+end)
+ui_btn_open_repo:Icon("\u{f09b}")
+ui_btn_open_repo:ToolTip("Открыть страницу https://github.com/elycde/umb в браузере")
 
 -- ------------------------------------------------------------------------
 -- TAB 2: Громкость и Тесты
@@ -420,11 +440,8 @@ ui_voicerecord_delay:ToolTip("Дополнительное время удерж
 
 -- Левая колонка: Инструкция
 local group_guide = tab_volume:Create("Инструкция", side_left)
-local ui_guide_step1 = group_guide:Label("1. Запустите elycde.exe")
-ui_guide_step1:ToolTip("При старте elycde.exe сам проверит наличие VB-Audio Cable.\nЕсли драйвера нет — окно сразу предложит скачать его с официального сайта.")
-
-local ui_guide_step2 = group_guide:Label("2. В Доте: CABLE Output")
-ui_guide_step2:ToolTip("В настройках Доты 2 (Звук -> Устройство записи / Микрофон) выберите:\n«CABLE Output (VB-Audio Virtual Cable)».\nТогда войс-трэшток пойдет прямо в голосовой чат игры!")
+local guide_msg = "\x07{primary_widgets_text}Для работы войса требуется запущенный \x07{primary}elycde.exe\x07{primary_widgets_text}.\n\nВ настройках звука Доты 2 выберите микрофон:\n\x07{primary}CABLE Output (VB-Audio Virtual Cable)\x07{primary_widgets_text}.\n\nЕсли звуки не играют в игре, \x07{primary}проверьте статус сервера\x07{primary_widgets_text} во вкладке Настройки."
+group_guide:Label(guide_msg)
 
 -- Правая колонка: Тестирование
 local group_tests = tab_volume:Create("Тестирование звуков", side_right)
@@ -432,32 +449,38 @@ local group_tests = tab_volume:Create("Тестирование звуков", s
 local ui_btn_test_kill = group_tests:Button("Тест: Звук при убийстве (Kill)", function()
     PlayVoiceSound("kill", "all")
 end)
-ui_btn_test_kill:ToolTip("Воспроизводит звук убийства в наушники и микрофон Доты (+voicerecord)")
+ui_btn_test_kill:Unsafe(true)
+ui_btn_test_kill:ToolTip("Внимание: требуется запущенный сервер elycde.exe!\nВоспроизводит звук убийства в наушники и микрофон Доты (+voicerecord).")
 
 local ui_btn_test_death = group_tests:Button("Тест: Звук при смерти (Death)", function()
     PlayVoiceSound("death", "all")
 end)
-ui_btn_test_death:ToolTip("Воспроизводит звук при смерти в наушники и микрофон Доты (+voicerecord)")
+ui_btn_test_death:Unsafe(true)
+ui_btn_test_death:ToolTip("Внимание: требуется запущенный сервер elycde.exe!\nВоспроизводит звук при смерти в наушники и микрофон Доты (+voicerecord).")
 
 local ui_btn_test_win = group_tests:Button("Тест: Звук победы (Victory)", function()
     PlayVoiceSound("victory", "all")
 end)
-ui_btn_test_win:ToolTip("Воспроизводит звук победы в наушники и микрофон Доты (+voicerecord)")
+ui_btn_test_win:Unsafe(true)
+ui_btn_test_win:ToolTip("Внимание: требуется запущенный сервер elycde.exe!\nВоспроизводит звук победы в наушники и микрофон Доты (+voicerecord).")
 
 local ui_btn_test_mic_only = group_tests:Button("Только в микрофон Доты (+voicerecord)", function()
     PlayVoiceSound("kill", "only_mic")
 end)
-ui_btn_test_mic_only:ToolTip("Отправляет звук напрямую в виртуальный микрофон Доты без звука в наушниках")
+ui_btn_test_mic_only:Unsafe(true)
+ui_btn_test_mic_only:ToolTip("Внимание: требуется запущенный сервер elycde.exe!\nОтправляет звук напрямую в виртуальный микрофон Доты без звука в наушниках.")
 
 local ui_btn_test_speaker_only = group_tests:Button("Только в наушники (для себя)", function()
     PlayVoiceSound("kill", "only_speaker")
 end)
-ui_btn_test_speaker_only:ToolTip("Воспроизводит звук только вам в наушники для комфортной настройки громкости")
+ui_btn_test_speaker_only:Unsafe(true)
+ui_btn_test_speaker_only:ToolTip("Внимание: требуется запущенный сервер elycde.exe!\nВоспроизводит звук только вам в наушники для настройки громкости.")
 
 local ui_btn_stop = group_tests:Button("Остановить всё (Stop)", function()
     StopAudioAndVoice()
 end)
-ui_btn_stop:ToolTip("Немедленно глушит звук и отпускает микрофон (-voicerecord)")
+ui_btn_stop:Unsafe(true)
+ui_btn_stop:ToolTip("Внимание: требуется запущенный сервер elycde.exe!\nНемедленно глушит звук на сервере и отпускает микрофон (-voicerecord).")
 
 -- ------------------------------------------------------------------------
 -- TAB 3: Чат и Насмешки
@@ -733,14 +756,11 @@ OpenSoundsFolder = function()
         end
     end)
 
-    local script_dir = GetScriptDir()
-    if script_dir then
-        local sounds_dir = script_dir .. "\\VoiceTrashTalk\\sounds"
-        pcall(function()
-            os.execute('if not exist "' .. sounds_dir .. '" mkdir "' .. sounds_dir .. '" >nul 2>&1')
-            os.execute('explorer.exe "' .. sounds_dir .. '"')
-        end)
-    end
+    pcall(function()
+        local script_dir = GetScriptDir()
+        local sounds_dir = (script_dir and script_dir ~= "") and (script_dir .. "\\VoiceTrashTalk\\sounds") or "C:\\Umbrella\\scripts\\VoiceTrashTalk\\sounds"
+        os.execute('cmd.exe /c if not exist "' .. sounds_dir .. '" mkdir "' .. sounds_dir .. '" & start "" "' .. sounds_dir .. '"')
+    end)
 end
 
 PlayVoiceSound = function(event_type, test_mode_flag)

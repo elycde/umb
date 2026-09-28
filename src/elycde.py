@@ -616,10 +616,19 @@ class ElycdeHandler(BaseHTTPRequestHandler):
                     if not os.path.exists(SOUNDS_DIR):
                         os.makedirs(SOUNDS_DIR, exist_ok=True)
                     
+                    opened = False
                     try:
-                        subprocess.Popen(f'explorer.exe "{SOUNDS_DIR}"', shell=True)
-                    except Exception:
                         os.startfile(SOUNDS_DIR)
+                        opened = True
+                    except Exception as e_start:
+                        log_debug(f"os.startfile error: {e_start}")
+                    
+                    if not opened:
+                        try:
+                            subprocess.Popen(f'explorer.exe "{SOUNDS_DIR}"', shell=True)
+                            opened = True
+                        except Exception as e_sub:
+                            log_debug(f"subprocess error: {e_sub}")
 
                     log_debug(f"Opened sounds folder: {SOUNDS_DIR}")
                     self.send_json({"status": "opened", "path": SOUNDS_DIR})
@@ -631,13 +640,29 @@ class ElycdeHandler(BaseHTTPRequestHandler):
             elif path == "/open_url":
                 target_url = query.get("url", [""])[0]
                 if target_url:
-                    import webbrowser
+                    target_url = unquote(target_url).strip()
+                    opened = False
                     try:
-                        webbrowser.open(target_url)
-                        self.send_json({"status": "opened", "url": target_url})
-                    except Exception as e:
-                        log_debug(f"open_url error: {e}")
-                        self.send_json({"status": "error", "message": str(e)}, code=500)
+                        os.startfile(target_url)
+                        opened = True
+                    except Exception as e_start:
+                        log_debug(f"os.startfile url error: {e_start}")
+
+                    if not opened:
+                        try:
+                            subprocess.Popen(f'cmd.exe /c start "" "{target_url}"', shell=True)
+                            opened = True
+                        except Exception as e_cmd:
+                            log_debug(f"cmd start url error: {e_cmd}")
+
+                    if not opened:
+                        try:
+                            import webbrowser
+                            webbrowser.open(target_url)
+                        except Exception as e_wb:
+                            log_debug(f"webbrowser error: {e_wb}")
+
+                    self.send_json({"status": "opened", "url": target_url})
                 else:
                     self.send_json({"status": "error", "message": "Missing url"}, code=400)
                 return
