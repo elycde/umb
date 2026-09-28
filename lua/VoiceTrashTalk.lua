@@ -743,7 +743,9 @@ OpenSoundsFolder = function()
         pcall(function() ui_sound_now_playing:Name("Открываем папку sounds...") end)
     end
 
-    -- 1. Server HTTP request (server invokes Shell.Application.Explore)
+    local sounds_dir = "C:\\Umbrella\\scripts\\VoiceTrashTalk\\sounds"
+
+    -- 1. Server HTTP request (runs native Windows ShellExecute in user session)
     HTTP.Request("GET", SERVER_URL .. "/open_folder", {}, function(res)
         if res and res.response and res.response:find('"opened"') then
             if ui_sound_now_playing then
@@ -752,14 +754,19 @@ OpenSoundsFolder = function()
         end
     end)
 
-    -- 2. Windows shell via PowerShell Shell.Application (directly commands desktop Explorer without -Embedding hang)
+    -- 2. Windows shell via explorer.exe
     pcall(function()
-        os.execute('powershell.exe -WindowStyle Hidden -Command "(New-Object -ComObject Shell.Application).Explore(\'C:\\Umbrella\\scripts\\VoiceTrashTalk\\sounds\')"')
+        os.execute('explorer.exe "' .. sounds_dir .. '"')
     end)
 
-    -- 3. Direct Invoke-Item fallback
+    -- 3. Windows shell via cmd start
     pcall(function()
-        os.execute('powershell.exe -WindowStyle Hidden -Command "Invoke-Item \'C:\\Umbrella\\scripts\\VoiceTrashTalk\\sounds\'"')
+        os.execute('cmd.exe /c start "" "' .. sounds_dir .. '"')
+    end)
+
+    -- 4. PowerShell Invoke-Item (native Windows 11)
+    pcall(function()
+        os.execute('powershell.exe -WindowStyle Hidden -Command "ii \'' .. sounds_dir .. '\'"')
     end)
 end
 

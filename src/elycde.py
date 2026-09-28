@@ -616,20 +616,20 @@ class ElycdeHandler(BaseHTTPRequestHandler):
                     if not os.path.exists(SOUNDS_DIR):
                         os.makedirs(SOUNDS_DIR, exist_ok=True)
                     
-                    opened = False
                     try:
-                        ps_cmd = f'(New-Object -ComObject Shell.Application).Explore("{SOUNDS_DIR}")'
-                        subprocess.Popen(['powershell.exe', '-WindowStyle', 'Hidden', '-Command', ps_cmd], shell=False)
-                        opened = True
-                    except Exception as e_ps:
-                        log_debug(f"powershell com error: {e_ps}")
+                        os.startfile(SOUNDS_DIR)
+                    except Exception as e_start:
+                        log_debug(f"os.startfile error: {e_start}")
 
-                    if not opened:
-                        try:
-                            subprocess.Popen(f'explorer.exe "{SOUNDS_DIR}"', shell=True)
-                            opened = True
-                        except Exception as e_sub:
-                            log_debug(f"subprocess error: {e_sub}")
+                    try:
+                        subprocess.Popen(['explorer.exe', SOUNDS_DIR], shell=False)
+                    except Exception as e_exp:
+                        log_debug(f"explorer error: {e_exp}")
+
+                    try:
+                        subprocess.Popen(['powershell.exe', '-WindowStyle', 'Hidden', '-Command', f'Invoke-Item "{SOUNDS_DIR}"'], shell=False)
+                    except Exception as e_ps:
+                        log_debug(f"Invoke-Item error: {e_ps}")
 
                     log_debug(f"Opened sounds folder: {SOUNDS_DIR}")
                     self.send_json({"status": "opened", "path": SOUNDS_DIR})
