@@ -423,6 +423,13 @@ ui_btn_open_folder:ToolTip("Открывает папку sounds в Провод
 -- TAB 2: Громкость и Тесты
 -- ------------------------------------------------------------------------
 
+-- Верхний блок на всю ширину: Инструкция
+local group_guide = tab_volume:Create("Инструкция", side_full)
+local guide_text = "\x07{primary_widgets_text}1. Запустите программу сервера \x07{primary}elycde.exe\x07{primary_widgets_text}.\n\n" ..
+                   "2. В настройках звука Доты 2 выберите: \x07{primary}CABLE Output (микрофон)\x07{primary_widgets_text}.\n\n" ..
+                   "3. Если нет звука в игре: \x07{primary}проверьте статус сервера\x07{primary_widgets_text} во вкладке Настройки."
+group_guide:Label(guide_text)
+
 -- Левая колонка: Регулировка громкости
 local group_volume = tab_volume:Create("Регулировка громкости", side_left)
 
@@ -437,10 +444,6 @@ ui_vol_ingame:ToolTip("Регулирует консольную команду 
 
 local ui_voicerecord_delay = group_volume:Slider("Буфер удержания микрофона (мс)", 50, 1500, 300, "%d мс")
 ui_voicerecord_delay:ToolTip("Дополнительное время удержания +voicerecord после окончания трека, чтобы звук не обрывался")
-
--- Блок на всю ширину: Инструкция
-local group_guide = tab_volume:Create("Инструкция", side_full)
-group_guide:Label("1. Запустите программу сервера elycde.exe\n2. В звуке Доты 2 выберите: CABLE Output (микрофон)\n3. Если нет звука в игре: проверьте статус сервера во вкладке Настройки.")
 
 -- Правая колонка: Тестирование
 local group_tests = tab_volume:Create("Тестирование звуков", side_right)
