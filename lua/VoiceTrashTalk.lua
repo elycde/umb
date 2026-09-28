@@ -48,10 +48,139 @@ local function GetScriptDir()
     return "scripts"
 end
 
-local SOUND_PRESETS = {
+local function LoadConfigTable()
+    local dir = GetScriptDir()
+    if not dir then return {} end
+    local path = dir .. "\\VoiceTrashTalk\\vtt_config.json"
+    local f = io.open(path, "r")
+    if not f then return {} end
+    local content = f:read("*a")
+    f:close()
+    if not content or content == "" then return {} end
+    local t = {}
+    for k, v in content:gmatch('"([^"]+)"%s*:%s*%[([^%]]*)%]') do
+        local arr = {}
+        for item in v:gmatch('"([^"]+)"') do
+            table.insert(arr, item)
+        end
+        t[k] = arr
+    end
+    return t
+end
+
+local function SaveConfigTable(key, list)
+    local dir = GetScriptDir()
+    if not dir then return end
+    local path = dir .. "\\VoiceTrashTalk\\vtt_config.json"
+    local ok, existing = pcall(LoadConfigTable)
+    if not ok or type(existing) ~= "table" then existing = {} end
+    existing[key] = list
+
+    local parts = {}
+    for k, arr in pairs(existing) do
+        local items = {}
+        for _, it in ipairs(arr) do
+            table.insert(items, string.format("%q", it))
+        end
+        table.insert(parts, string.format('  "%s": [%s]', k, table.concat(items, ", ")))
+    end
+    local json_str = "{\n" .. table.concat(parts, ",\n") .. "\n}"
+    local f = io.open(path, "w")
+    if f then
+        f:write(json_str)
+        f:close()
+    end
+end
+
+local function GetSavedList(key)
+    if Config and Config.ReadString then
+        local ok, raw = pcall(function() return Config.ReadString("elycde_vtt", key, "") end)
+        if ok and raw and raw ~= "" then
+            local list = {}
+            for item in raw:gmatch("([^|]+)") do
+                table.insert(list, item)
+            end
+            if #list > 0 then return list end
+        end
+    end
+    local t = LoadConfigTable()
+    return t[key] or {}
+end
+
+local function SetSavedList(key, list)
+    if not list then list = {} end
+    if Config and Config.WriteString then
+        pcall(function()
+            Config.WriteString("elycde_vtt", key, table.concat(list, "|"))
+        end)
+    end
+    pcall(function() SaveConfigTable(key, list) end)
+end
+
+local function url_encode(str)
+    if not str then return "" end
+    str = tostring(str)
+    return (str:gsub("([^%w%-%_%.%~])", function(c)
+        return string.format("%%%02X", string.byte(c))
+    end))
+end
+
+local DEFAULT_SOUND_PRESETS = {
     "1.wav",
-    "2.wav"
+    "2.wav",
+    "втащил в соляного.wav",
+    "гимн папича.mp3",
+    "Идите нахуй пидорасы Папич.wav",
+    "легчайшая для величайшего.mp3",
+    "НЫАААА.mp3",
+    "отлетаешь очередняра.mp3",
+    "Папич - кто то сомневается.mp3",
+    "Папич - ЧинЧопа.mp3",
+    "Папич Ненавижу доту.mp3",
+    "Папич очередняра запилил уебка.mp3",
+    "Папич умер из за разрабов.mp3",
+    "Папича  НЫЫЫЫААААА.mp3",
+    "у меня задержка в развитии.mp3",
+    "хелп.mp3",
+    "что я сделал.mp3"
 }
+
+local function LoadCachedSoundPresets()
+    local dir = GetScriptDir()
+    if not dir then return DEFAULT_SOUND_PRESETS end
+    local path = dir .. "\\VoiceTrashTalk\\sounds_cache.json"
+    local f = io.open(path, "r")
+    if f then
+        local content = f:read("*a")
+        f:close()
+        if content and content ~= "" then
+            local list = {}
+            for item in content:gmatch('"([^"]+)"') do
+                table.insert(list, item)
+            end
+            if #list > 0 then return list end
+        end
+    end
+    return DEFAULT_SOUND_PRESETS
+end
+
+local function SaveCachedSoundPresets(list)
+    local dir = GetScriptDir()
+    if not dir or not list then return end
+    local path = dir .. "\\VoiceTrashTalk\\sounds_cache.json"
+    local items = {}
+    for _, it in ipairs(list) do
+        table.insert(items, string.format("%q", it))
+    end
+    local json_str = "[\n  " .. table.concat(items, ",\n  ") .. "\n]"
+    local f = io.open(path, "w")
+    if f then
+        f:write(json_str)
+        f:close()
+    end
+end
+
+local SOUND_PRESETS = LoadCachedSoundPresets()
 
 local SOUND_MODES = {
     "Случайный из всех",
@@ -89,14 +218,23 @@ local function CreateMultiControl(group, name, items, default_enabled)
     return ctrl
 end
 
-local function UpdateMultiControl(ctrl, new_items)
+local function UpdateMultiControl(ctrl, new_items, saved_key)
     if not ctrl then return end
     pcall(function()
         local prev_enabled = {}
         if ctrl.ListEnabled then
             local ok, list = pcall(function() return ctrl:ListEnabled() end)
-            if ok and list and type(list) == "table" then
+            if ok and list and type(list) == "table" and #list > 0 then
                 for _, s in ipairs(list) do
+                    prev_enabled[s] = true
+                end
+            end
+        end
+
+        if saved_key then
+            local saved = GetSavedList(saved_key)
+            if saved and type(saved) == "table" then
+                for _, s in ipairs(saved) do
                     prev_enabled[s] = true
                 end
             end
@@ -118,7 +256,7 @@ local function UpdateMultiControl(ctrl, new_items)
                 table.insert(opts, { item, "", prev_enabled[item] == true })
             end
             pcall(function()
-                ctrl:Update(opts, false)
+                ctrl:Update(opts, false, true)
             end)
         end
     end)
@@ -168,10 +306,23 @@ ui_on_fb:ToolTip("Воспроизводить отдельный звук пр�
 local ui_kill_mode = group_kill:Combo("Режим звука Kill", SOUND_MODES, 0)
 ui_kill_mode:ToolTip("Случайный: рандом из всех файлов папки sounds.\nВыбранные: выбор одного или нескольких треков галочками из списка ниже.")
 
-local ui_kill_sounds = CreateMultiControl(group_kill, "Звуки при убийстве", SOUND_PRESETS, {})
+local saved_kill_sounds = GetSavedList("kill_sounds")
+local ui_kill_sounds = CreateMultiControl(group_kill, "Звуки при убийстве", SOUND_PRESETS, saved_kill_sounds)
 if ui_kill_sounds then
     pcall(function() ui_kill_sounds:Icon("\u{f028}") end)
     pcall(function() ui_kill_sounds:ToolTip("Выберите треки галочками для убийства. Если выбрано несколько, играет случайный из них.") end)
+    pcall(function()
+        if ui_kill_sounds.SetCallback then
+            ui_kill_sounds:SetCallback(function()
+                if ui_kill_sounds.ListEnabled then
+                    local ok, list = pcall(function() return ui_kill_sounds:ListEnabled() end)
+                    if ok and list and type(list) == "table" then
+                        SetSavedList("kill_sounds", list)
+                    end
+                end
+            end)
+        end
+    end)
 end
 
 local ui_cooldown = group_kill:Slider("Кулдаун между звуками (сек)", 1, 20, 4, "%d сек")
@@ -185,10 +336,23 @@ ui_on_death:ToolTip("Воспроизводить звук в микрофон �
 local ui_death_mode = group_death:Combo("Режим звука Death", SOUND_MODES, 0)
 ui_death_mode:ToolTip("Случайный: рандом из всех файлов папки sounds.\nВыбранные: выбор одного или нескольких треков галочками из списка ниже.")
 
-local ui_death_sounds = CreateMultiControl(group_death, "Звуки при смерти", SOUND_PRESETS, {})
+local saved_death_sounds = GetSavedList("death_sounds")
+local ui_death_sounds = CreateMultiControl(group_death, "Звуки при смерти", SOUND_PRESETS, saved_death_sounds)
 if ui_death_sounds then
     pcall(function() ui_death_sounds:Icon("\u{f714}") end)
     pcall(function() ui_death_sounds:ToolTip("Выберите треки галочками для своей смерти. Если выбрано несколько, играет случайный из них.") end)
+    pcall(function()
+        if ui_death_sounds.SetCallback then
+            ui_death_sounds:SetCallback(function()
+                if ui_death_sounds.ListEnabled then
+                    local ok, list = pcall(function() return ui_death_sounds:ListEnabled() end)
+                    if ok and list and type(list) == "table" then
+                        SetSavedList("death_sounds", list)
+                    end
+                end
+            end)
+        end
+    end)
 end
 
 -- Правая колонка: 3. Победа команды (Victory / Трон)
@@ -199,10 +363,23 @@ ui_on_win:ToolTip("Воспроизводить триумфальный зву�
 local ui_win_mode = group_win:Combo("Режим звука Victory", SOUND_MODES, 0)
 ui_win_mode:ToolTip("Случайный: рандом из всех файлов папки sounds.\nВыбранные: выбор одного или нескольких треков галочками из списка ниже.")
 
-local ui_win_sounds = CreateMultiControl(group_win, "Звуки при победе", SOUND_PRESETS, {})
+local saved_win_sounds = GetSavedList("win_sounds")
+local ui_win_sounds = CreateMultiControl(group_win, "Звуки при победе", SOUND_PRESETS, saved_win_sounds)
 if ui_win_sounds then
     pcall(function() ui_win_sounds:Icon("\u{f091}") end)
     pcall(function() ui_win_sounds:ToolTip("Выберите треки галочками при победе команды. Если выбрано несколько, играет случайный из них.") end)
+    pcall(function()
+        if ui_win_sounds.SetCallback then
+            ui_win_sounds:SetCallback(function()
+                if ui_win_sounds.ListEnabled then
+                    local ok, list = pcall(function() return ui_win_sounds:ListEnabled() end)
+                    if ok and list and type(list) == "table" then
+                        SetSavedList("win_sounds", list)
+                    end
+                end
+            end)
+        end
+    end)
 end
 
 -- Левая колонка: 4. Управление звуками
@@ -373,16 +550,20 @@ UpdateVisibility()
 local function GetEventSound(event_type)
     local mode = 0
     local multi_ctrl = nil
+    local saved_key = "kill_sounds"
 
     if event_type == "kill" or event_type == "firstblood" then
         mode = (ui_kill_mode and ui_kill_mode:Get()) or 0
         multi_ctrl = ui_kill_sounds
+        saved_key = "kill_sounds"
     elseif event_type == "death" then
         mode = (ui_death_mode and ui_death_mode:Get()) or 0
         multi_ctrl = ui_death_sounds
+        saved_key = "death_sounds"
     elseif event_type == "victory" then
         mode = (ui_win_mode and ui_win_mode:Get()) or 0
         multi_ctrl = ui_win_sounds
+        saved_key = "win_sounds"
     end
 
     -- 0: Случайный из всей папки sounds
@@ -391,9 +572,9 @@ local function GetEventSound(event_type)
     end
 
     -- 1: Выбранные галочками из выпадающего списка
-    if mode == 1 and multi_ctrl then
+    if mode == 1 then
         local pool = {}
-        if multi_ctrl.ListEnabled then
+        if multi_ctrl and multi_ctrl.ListEnabled then
             local ok, list = pcall(function() return multi_ctrl:ListEnabled() end)
             if ok and list and type(list) == "table" then
                 for _, item in ipairs(list) do
@@ -402,6 +583,19 @@ local function GetEventSound(event_type)
                     end
                 end
             end
+        end
+
+        if #pool == 0 then
+            local saved = GetSavedList(saved_key)
+            if saved and type(saved) == "table" then
+                for _, item in ipairs(saved) do
+                    if item and item ~= "" and not item:find("^%(") then
+                        table.insert(pool, item)
+                    end
+                end
+            end
+        else
+            SetSavedList(saved_key, pool)
         end
 
         if #pool > 0 then
@@ -437,13 +631,14 @@ RefreshSoundsList = function(callback)
 
         if #new_list > 0 then
             SOUND_PRESETS = new_list
+            SaveCachedSoundPresets(new_list)
         else
             SOUND_PRESETS = { "(Папка sounds пуста)" }
         end
 
-        UpdateMultiControl(ui_kill_sounds, SOUND_PRESETS)
-        UpdateMultiControl(ui_death_sounds, SOUND_PRESETS)
-        UpdateMultiControl(ui_win_sounds, SOUND_PRESETS)
+        UpdateMultiControl(ui_kill_sounds, SOUND_PRESETS, "kill_sounds")
+        UpdateMultiControl(ui_death_sounds, SOUND_PRESETS, "death_sounds")
+        UpdateMultiControl(ui_win_sounds, SOUND_PRESETS, "win_sounds")
 
         if ui_sound_now_playing then
             pcall(function()
@@ -512,9 +707,9 @@ PlayVoiceSound = function(event_type, test_mode_flag)
 
     local chosen_file = GetEventSound(event_type)
     if chosen_file and chosen_file ~= "" and chosen_file ~= "(Папка sounds пуста)" then
-        url = url .. "&file=" .. chosen_file
+        url = url .. "&file=" .. url_encode(chosen_file)
     elseif event_type then
-        url = url .. "&event=" .. event_type
+        url = url .. "&event=" .. url_encode(event_type)
     end
 
     HTTP.Request("GET", url, {}, function(res)

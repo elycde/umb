@@ -1,5 +1,25 @@
 import os
 import sys
+import traceback
+
+if sys.stdout is None:
+    try: sys.stdout = open(os.devnull, "w")
+    except Exception: pass
+if sys.stderr is None:
+    try: sys.stderr = open(os.devnull, "w")
+    except Exception: pass
+
+def uncaught_exception_handler(exc_type, exc_value, exc_traceback):
+    try:
+        app_dir = os.path.dirname(sys.executable) if getattr(sys, 'frozen', False) else os.path.dirname(os.path.abspath(__file__))
+        crash_log = os.path.join(app_dir, "crash.log")
+        with open(crash_log, "a", encoding="utf-8") as f:
+            f.write("".join(traceback.format_exception(exc_type, exc_value, exc_traceback)) + "\n")
+    except Exception:
+        pass
+
+sys.excepthook = uncaught_exception_handler
+
 import json
 import random
 import time
@@ -8,13 +28,14 @@ import hashlib
 import urllib.request
 import subprocess
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import urlparse, parse_qs, unquote
 
 import numpy as np
 import sounddevice as sd
 import miniaudio
 
 PORT = 8765
+APP_VERSION = "1.0.11"
 
 if getattr(sys, 'frozen', False):
     APP_DIR = os.path.dirname(sys.executable)
@@ -226,18 +247,19 @@ def check_for_updates(force=False):
                 except Exception as e:
                     log_debug(f"Failed to write sound {snd}: {e}")
 
-    # 3. Update elycde.exe (Self-update from GitHub Releases)
-    if getattr(sys, 'frozen', False):
+    # 3. Update elycde.exe (Self-update from GitHub Releases only on force and strictly newer version)
+    if force and getattr(sys, 'frozen', False):
         exe_local = sys.executable
         exe_url = None
+        remote_tag = ""
 
-        # Check GitHub Releases latest
         try:
             rel_api = f"https://api.github.com/repos/{repo}/releases/latest"
             req = urllib.request.Request(rel_api, headers={"User-Agent": "elycde-updater/2.0"})
             with urllib.request.urlopen(req, timeout=5) as resp:
                 if resp.status == 200:
                     rel_data = json.loads(resp.read().decode("utf-8"))
+                    remote_tag = rel_data.get("tag_name", "").lstrip("v")
                     for asset in rel_data.get("assets", []):
                         if asset.get("name", "").lower() == "elycde.exe":
                             exe_url = asset.get("browser_download_url")
@@ -245,24 +267,29 @@ def check_for_updates(force=False):
         except Exception:
             pass
 
-        if not exe_url:
-            exe_url = f"https://github.com/{repo}/releases/latest/download/elycde.exe"
+        def parse_v(v_str):
+            try:
+                return [int(x) for x in v_str.replace("v", "").split(".") if x.isdigit()]
+            except Exception:
+                return [0, 0, 0]
 
-        exe_content = download_url(exe_url, timeout=30)
-        if exe_content and len(exe_content) > 1000000:
-            local_hash = get_file_hash(exe_local)
-            remote_hash = hashlib.sha256(exe_content).hexdigest()
-            if local_hash != remote_hash:
-                new_exe = exe_local + ".new"
-                try:
-                    with open(new_exe, "wb") as f:
-                        f.write(exe_content)
-                    exe_updated = True
-                    log_debug("Downloaded new elycde.exe from GitHub Release. Spawning self-updater...")
+        is_newer = parse_v(remote_tag) > parse_v(APP_VERSION)
+        if exe_url and is_newer:
+            exe_content = download_url(exe_url, timeout=30)
+            if exe_content and len(exe_content) > 1000000:
+                local_hash = get_file_hash(exe_local)
+                remote_hash = hashlib.sha256(exe_content).hexdigest()
+                if local_hash != remote_hash:
+                    new_exe = exe_local + ".new"
+                    try:
+                        with open(new_exe, "wb") as f:
+                            f.write(exe_content)
+                        exe_updated = True
+                        log_debug(f"Downloaded new elycde.exe (v{remote_tag}) from GitHub Release. Spawning self-updater...")
 
-                    updater_bat = os.path.join(os.path.dirname(exe_local), "updater.bat")
-                    with open(updater_bat, "w", encoding="utf-8") as bf:
-                        bf.write(f'''@echo off
+                        updater_bat = os.path.join(os.path.dirname(exe_local), "updater.bat")
+                        with open(updater_bat, "w", encoding="utf-8") as bf:
+                            bf.write(f'''@echo off
 timeout /t 1 /nobreak >nul
 :loop
 del "{exe_local}" >nul 2>&1
@@ -274,11 +301,11 @@ move /y "{new_exe}" "{exe_local}" >nul
 start "" "{exe_local}"
 del "%~f0" >nul 2>&1
 ''')
-                    subprocess.Popen(["cmd.exe", "/c", updater_bat], cwd=os.path.dirname(exe_local), creationflags=0x08000000 if os.name == 'nt' else 0)
-                    time.sleep(0.5)
-                    os._exit(0)
-                except Exception as e:
-                    log_debug(f"Failed to apply elycde.exe update: {e}")
+                        subprocess.Popen(["cmd.exe", "/c", updater_bat], cwd=os.path.dirname(exe_local), creationflags=0x08000000 if os.name == 'nt' else 0)
+                        time.sleep(0.5)
+                        os._exit(0)
+                    except Exception as e:
+                        log_debug(f"Failed to apply elycde.exe update: {e}")
 
     if remote_sha:
         cfg["last_commit"] = remote_sha
@@ -325,7 +352,35 @@ class AudioPlayer:
             log_debug(f"detect_devices error: {e}")
 
     def load_audio(self, filepath):
-        decoded = miniaudio.decode_file(filepath)
+        decoded = None
+        try:
+            with open(filepath, "rb") as f:
+                data = f.read()
+            decoded = miniaudio.decode(data)
+        except Exception as e1:
+            try:
+                decoded = miniaudio.decode_file(filepath)
+            except Exception:
+                try:
+                    import av
+                    container = av.open(filepath)
+                    stream = container.streams.audio[0]
+                    sr = stream.rate or 44100
+                    resampler = av.AudioResampler(format='fltp', layout='stereo', rate=sr)
+                    chunks = []
+                    for frame in container.decode(stream):
+                        res = resampler.resample(frame)
+                        if res:
+                            for r in res:
+                                chunks.append(r.to_ndarray().T)
+                    if chunks:
+                        audio_data = np.vstack(chunks)
+                        duration_ms = int((len(audio_data) / sr) * 1000)
+                        return audio_data, sr, duration_ms
+                except Exception as e_av:
+                    log_debug(f"av decode error: {e_av}")
+                raise e1
+
         sr = decoded.sample_rate
         ch = decoded.nchannels
         samples = np.array(decoded.samples, dtype=np.float32) / 32768.0
@@ -475,12 +530,14 @@ class ElycdeHandler(BaseHTTPRequestHandler):
 
                 target_path = None
                 if specific_file:
+                    specific_file = unquote(specific_file).strip()
                     candidate = os.path.join(SOUNDS_DIR, specific_file.replace("/", "\\"))
                     if os.path.exists(candidate):
                         target_path = candidate
                     else:
+                        base_query = os.path.basename(specific_file).lower()
                         for f in get_sound_files():
-                            if os.path.basename(f).lower() == specific_file.lower():
+                            if os.path.basename(f).lower() == base_query:
                                 target_path = f
                                 break
 
@@ -652,7 +709,7 @@ def main():
         if not os.path.exists(map_script) or not os.path.exists(set_script) or not os.path.exists(vis_script) or not os.path.exists(vtt_script):
             log_debug("Initial setup: downloading Lua bundle from GitHub...")
             try:
-                check_for_updates(force=True)
+                check_for_updates(force=False)
             except Exception as ex:
                 log_debug(f"Initial download error: {ex}")
 
