@@ -324,7 +324,9 @@ del "%~f0" >nul 2>&1
 class AudioPlayer:
     def __init__(self):
         self.is_playing = False
-        self._stop_event = threading.Event()
+        self._current_stop_event = None
+        self._threads = []
+        self._lock = threading.Lock()
         self.cable_idx = None
         self.cable_name = ""
         self.speaker_idx = None
@@ -385,12 +387,31 @@ class AudioPlayer:
         ch = decoded.nchannels
         samples = np.array(decoded.samples, dtype=np.float32) / 32768.0
         audio_data = samples.reshape(-1, ch)
-        duration_ms = int((decoded.num_frames / sr) * 1000)
+
+        # Auto-trim trailing dead silence so voicerecord releases naturally without hanging
+        abs_samples = np.abs(audio_data)
+        max_amp = np.max(abs_samples)
+        if max_amp > 0.01:
+            threshold = max(0.005, max_amp * 0.01)
+            above = np.where(np.any(abs_samples > threshold, axis=1))[0]
+            if len(above) > 0:
+                last_idx = min(len(audio_data), above[-1] + int(sr * 0.12))
+                if last_idx < len(audio_data) - int(sr * 0.2):
+                    audio_data = audio_data[:last_idx]
+                    fade_len = min(len(audio_data), int(sr * 0.05))
+                    if fade_len > 0:
+                        fade = np.linspace(1.0, 0.0, fade_len).reshape(-1, 1)
+                        audio_data[-fade_len:] *= fade
+
+        duration_ms = int((len(audio_data) / sr) * 1000)
         return audio_data, sr, duration_ms
 
     def play(self, filepath, speaker_vol=80, mic_vol=100, only_speaker=False, only_mic=False):
         self.stop()
-        self._stop_event.clear()
+
+        with self._lock:
+            stop_event = threading.Event()
+            self._current_stop_event = stop_event
 
         audio_data, sr, duration_ms = self.load_audio(filepath)
 
@@ -403,41 +424,54 @@ class AudioPlayer:
         use_cable = (self.cable_idx is not None) and (not only_speaker) and (m_vol > 0.001)
         use_speaker = (self.speaker_idx is not None) and (not only_mic) and (s_vol > 0.001)
 
-        def play_stream(device, data):
+        def play_stream(device, data, ev):
             try:
                 channels = data.shape[1] if len(data.shape) > 1 else 1
                 with sd.OutputStream(device=device, samplerate=sr, channels=channels) as stream:
                     chunk_size = 2048
                     pos = 0
                     total_len = len(data)
-                    while pos < total_len and not self._stop_event.is_set():
+                    while pos < total_len and not ev.is_set():
                         chunk = data[pos : pos + chunk_size]
                         stream.write(chunk)
                         pos += chunk_size
             except Exception as e:
                 log_debug(f"play_stream error (device={device}): {e}")
+            finally:
+                if not ev.is_set():
+                    self.is_playing = False
 
         threads = []
         if use_cable:
-            t_cable = threading.Thread(target=play_stream, args=(self.cable_idx, cable_audio), daemon=True)
+            t_cable = threading.Thread(target=play_stream, args=(self.cable_idx, cable_audio, stop_event), daemon=True)
             threads.append(t_cable)
             t_cable.start()
 
         if use_speaker:
-            t_speaker = threading.Thread(target=play_stream, args=(self.speaker_idx, speaker_audio), daemon=True)
+            t_speaker = threading.Thread(target=play_stream, args=(self.speaker_idx, speaker_audio, stop_event), daemon=True)
             threads.append(t_speaker)
             t_speaker.start()
 
-        self.is_playing = len(threads) > 0
+        with self._lock:
+            self._threads = threads
+            self.is_playing = len(threads) > 0
+
         return True, duration_ms, use_cable, use_speaker
 
     def stop(self):
-        self._stop_event.set()
-        try:
-            sd.stop()
-        except Exception:
-            pass
-        self.is_playing = False
+        with self._lock:
+            if self._current_stop_event:
+                self._current_stop_event.set()
+                self._current_stop_event = None
+            try:
+                sd.stop()
+            except Exception:
+                pass
+            for t in self._threads:
+                if t.is_alive() and t != threading.current_thread():
+                    t.join(timeout=0.1)
+            self._threads = []
+            self.is_playing = False
 
 player = AudioPlayer()
 

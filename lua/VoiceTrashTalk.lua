@@ -32,6 +32,7 @@ local SERVER_URL = "http://127.0.0.1:8765"
 local is_speaking = false
 local stop_speak_time = 0
 local last_kill_time = 0
+local last_death_time = 0
 local last_ingame_vol = -1
 local next_ping_time = 0
 local has_played_win = false
@@ -547,27 +548,81 @@ UpdateVisibility()
 -- ------------------------------------------------------------------------
 -- Вспомогательная логика выбора звука для событий
 -- ------------------------------------------------------------------------
+local last_played_sound = {
+    kill = nil,
+    death = nil,
+    victory = nil,
+    all = nil
+}
+
+pcall(function()
+    math.randomseed(os.time() + math.floor(os.clock() * 1000000))
+    for _ = 1, 10 do math.random() end
+end)
+
+local function PickSoundFromPool(category, pool)
+    if not pool or #pool == 0 then return nil end
+    if #pool == 1 then
+        last_played_sound[category] = pool[1]
+        return pool[1]
+    end
+
+    pcall(function()
+        math.randomseed(os.time() + math.floor(os.clock() * 1000000) + math.random(1, 10000))
+    end)
+
+    -- Исключаем предыдущий сыгранный трек, чтобы звуки гарантированно не повторялись подряд
+    local last = last_played_sound[category]
+    local candidates = {}
+    for _, item in ipairs(pool) do
+        if item ~= last then
+            table.insert(candidates, item)
+        end
+    end
+
+    if #candidates == 0 then
+        candidates = pool
+    end
+
+    local chosen = candidates[math.random(1, #candidates)]
+    last_played_sound[category] = chosen
+    return chosen
+end
+
 local function GetEventSound(event_type)
     local mode = 0
     local multi_ctrl = nil
     local saved_key = "kill_sounds"
+    local cat = "kill"
 
     if event_type == "kill" or event_type == "firstblood" then
         mode = (ui_kill_mode and ui_kill_mode:Get()) or 0
         multi_ctrl = ui_kill_sounds
         saved_key = "kill_sounds"
+        cat = "kill"
     elseif event_type == "death" then
         mode = (ui_death_mode and ui_death_mode:Get()) or 0
         multi_ctrl = ui_death_sounds
         saved_key = "death_sounds"
+        cat = "death"
     elseif event_type == "victory" then
         mode = (ui_win_mode and ui_win_mode:Get()) or 0
         multi_ctrl = ui_win_sounds
         saved_key = "win_sounds"
+        cat = "victory"
     end
 
-    -- 0: Случайный из всей папки sounds
+    -- 0: Случайный из всех файлов папки sounds (с защитой от повторов подряд)
     if mode == 0 then
+        local valid_presets = {}
+        for _, it in ipairs(SOUND_PRESETS or {}) do
+            if it and it ~= "" and not it:find("^%(") then
+                table.insert(valid_presets, it)
+            end
+        end
+        if #valid_presets > 0 then
+            return PickSoundFromPool("all", valid_presets)
+        end
         return nil
     end
 
@@ -599,7 +654,7 @@ local function GetEventSound(event_type)
         end
 
         if #pool > 0 then
-            return pool[math.random(1, #pool)]
+            return PickSoundFromPool(cat, pool)
         end
     end
 
@@ -658,10 +713,8 @@ end
 
 StopAudioAndVoice = function()
     HTTP.Request("GET", SERVER_URL .. "/stop", {}, function() end)
-    if is_speaking then
-        Engine.ExecuteCommand("-voicerecord")
-        is_speaking = false
-    end
+    Engine.ExecuteCommand("-voicerecord")
+    is_speaking = false
     if ui_sound_now_playing then
         pcall(function() ui_sound_now_playing:Name("Сейчас играет: Нет") end)
     end
@@ -876,8 +929,8 @@ function VoiceTrashTalk.OnEntityKilled(data)
     if ui_on_death:Get() and data.target == my_hero then
         local now = os.clock()
         local cd = (ui_cooldown and ui_cooldown:Get()) or 4
-        if (now - last_kill_time) >= cd then
-            last_kill_time = now
+        if (now - last_death_time) >= cd then
+            last_death_time = now
             PlayVoiceSound("death", false)
         end
         return
@@ -895,10 +948,8 @@ function VoiceTrashTalk.OnEntityKilled(data)
 end
 
 function VoiceTrashTalk.OnScriptUnload()
-    if is_speaking then
-        Engine.ExecuteCommand("-voicerecord")
-        is_speaking = false
-    end
+    Engine.ExecuteCommand("-voicerecord")
+    is_speaking = false
 end
 
 return VoiceTrashTalk
