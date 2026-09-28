@@ -420,12 +420,6 @@ ui_btn_open_folder:Icon("\u{f07b}")
 ui_btn_open_folder:Unsafe(true)
 ui_btn_open_folder:ToolTip("Внимание: требуется запущенный сервер elycde.exe!\nОткрывает папку sounds в Проводнике Windows для добавления своих треков.")
 
-local ui_btn_open_repo = group_sound_manage:Button("Открыть GitHub репозиторий", function()
-    OpenBrowserUrl(GITHUB_REPO)
-end)
-ui_btn_open_repo:Icon("\u{f09b}")
-ui_btn_open_repo:ToolTip("Открыть страницу https://github.com/elycde/umb в браузере")
-
 -- ------------------------------------------------------------------------
 -- TAB 2: Громкость и Тесты
 -- ------------------------------------------------------------------------
@@ -447,8 +441,13 @@ ui_voicerecord_delay:ToolTip("Дополнительное время удерж
 
 -- Левая колонка: Инструкция
 local group_guide = tab_volume:Create("Инструкция", side_left)
-local guide_msg = "\x07{primary_widgets_text}Для работы войса требуется запущенный \x07{primary}elycde.exe\x07{primary_widgets_text}.\n\nВ настройках звука Доты 2 выберите микрофон:\n\x07{primary}CABLE Output (VB-Audio Virtual Cable)\x07{primary_widgets_text}.\n\nЕсли звуки не играют в игре, \x07{primary}проверьте статус сервера\x07{primary_widgets_text} во вкладке Настройки."
-group_guide:Label(guide_msg)
+group_guide:Label("1. Запустите программу")
+group_guide:Label("сервера \x07{primary}elycde.exe\x07{primary_widgets_text}")
+group_guide:Label("2. В звуке Доты 2 выберите:")
+group_guide:Label("\x07{primary}CABLE Output (микрофон)\x07{primary_widgets_text}")
+group_guide:Label("3. Если нет звука в игре:")
+group_guide:Label("\x07{primary}проверьте статус сервера\x07{primary_widgets_text}")
+group_guide:Label("во вкладке Настройки.")
 
 -- Правая колонка: Тестирование
 local group_tests = tab_volume:Create("Тестирование звуков", side_right)
