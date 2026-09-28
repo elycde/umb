@@ -53,17 +53,76 @@ local SOUND_PRESETS = {
     "2.wav"
 }
 
-local SOUND_PRESETS_NONE = {
-    "(Не выбран)",
-    "1.wav",
-    "2.wav"
+local SOUND_MODES = {
+    "🎲 Случайный из всех",
+    "☑️ Выбранные из списка"
 }
 
-local SOUND_MODES = {
-    "🎲 Случайный из всей папки",
-    "🎯 Один выбранный файл",
-    "🔀 Пул из выбранных звуков"
-}
+local function SetVisible(ctrl, show)
+    if not ctrl then return end
+    pcall(function()
+        if ctrl.Visible then ctrl:Visible(show == true) end
+    end)
+end
+
+local function CreateMultiControl(group, name, items, default_enabled)
+    if not group then return nil end
+    local ctrl = nil
+    if group.MultiCombo then
+        local ok, res = pcall(function()
+            return group:MultiCombo(name, items or {}, default_enabled or {})
+        end)
+        if ok and res then ctrl = res end
+    end
+    if not ctrl and group.MultiSelect then
+        local opts = {}
+        local def_map = {}
+        for _, d in ipairs(default_enabled or {}) do def_map[d] = true end
+        for _, it in ipairs(items or {}) do
+            table.insert(opts, { it, "", def_map[it] == true })
+        end
+        local ok, res = pcall(function()
+            return group:MultiSelect(name, opts, false)
+        end)
+        if ok and res then ctrl = res end
+    end
+    return ctrl
+end
+
+local function UpdateMultiControl(ctrl, new_items)
+    if not ctrl then return end
+    pcall(function()
+        local prev_enabled = {}
+        if ctrl.ListEnabled then
+            local ok, list = pcall(function() return ctrl:ListEnabled() end)
+            if ok and list and type(list) == "table" then
+                for _, s in ipairs(list) do
+                    prev_enabled[s] = true
+                end
+            end
+        end
+
+        local enabled_list = {}
+        for _, item in ipairs(new_items) do
+            if prev_enabled[item] then
+                table.insert(enabled_list, item)
+            end
+        end
+
+        local ok_combo = pcall(function()
+            ctrl:Update(new_items, enabled_list)
+        end)
+        if not ok_combo then
+            local opts = {}
+            for _, item in ipairs(new_items) do
+                table.insert(opts, { item, "", prev_enabled[item] == true })
+            end
+            pcall(function()
+                ctrl:Update(opts, false)
+            end)
+        end
+    end)
+end
 
 local PHRASES_KILL = {
     "?",
@@ -107,12 +166,13 @@ local ui_on_fb = group_kill:Switch("Особый звук на First Blood", tru
 ui_on_fb:ToolTip("Воспроизводить отдельный звук при первой крови")
 
 local ui_kill_mode = group_kill:Combo("Режим звука Kill", SOUND_MODES, 0)
-ui_kill_mode:ToolTip("Случайный: рандом из всех файлов папки sounds.\nОдин файл: всегда играет выбранный звук.\nПул: случайный выбор только из выбранных слотов ниже.")
+ui_kill_mode:ToolTip("Случайный: рандом из всех файлов папки sounds.\nВыбранные: выбор одного или нескольких треков галочками из списка ниже.")
 
-local ui_kill_file1 = group_kill:Combo("Файл при убийстве", SOUND_PRESETS, 0)
-local ui_kill_file2 = group_kill:Combo("Пул: Доп. звук #2", SOUND_PRESETS_NONE, 0)
-local ui_kill_file3 = group_kill:Combo("Пул: Доп. звук #3", SOUND_PRESETS_NONE, 0)
-local ui_kill_file4 = group_kill:Combo("Пул: Доп. звук #4", SOUND_PRESETS_NONE, 0)
+local ui_kill_sounds = CreateMultiControl(group_kill, "Звуки при убийстве", SOUND_PRESETS, {})
+if ui_kill_sounds then
+    pcall(function() ui_kill_sounds:Icon("\u{f028}") end)
+    pcall(function() ui_kill_sounds:ToolTip("Выберите треки галочками для убийства. Если выбрано несколько, играет случайный из них.") end)
+end
 
 local ui_cooldown = group_kill:Slider("Кулдаун между звуками (сек)", 1, 20, 4, "%d сек")
 ui_cooldown:ToolTip("Минимальный интервал между срабатываниями звуков")
@@ -123,12 +183,13 @@ local ui_on_death = group_death:Switch("Войс при своей смерти"
 ui_on_death:ToolTip("Воспроизводить звук в микрофон при вашей гибели")
 
 local ui_death_mode = group_death:Combo("Режим звука Death", SOUND_MODES, 0)
-ui_death_mode:ToolTip("Случайный: рандом из всех файлов папки sounds.\nОдин файл: всегда играет выбранный звук.\nПул: случайный выбор только из выбранных слотов ниже.")
+ui_death_mode:ToolTip("Случайный: рандом из всех файлов папки sounds.\nВыбранные: выбор одного или нескольких треков галочками из списка ниже.")
 
-local ui_death_file1 = group_death:Combo("Файл при смерти", SOUND_PRESETS, 0)
-local ui_death_file2 = group_death:Combo("Пул: Доп. звук #2", SOUND_PRESETS_NONE, 0)
-local ui_death_file3 = group_death:Combo("Пул: Доп. звук #3", SOUND_PRESETS_NONE, 0)
-local ui_death_file4 = group_death:Combo("Пул: Доп. звук #4", SOUND_PRESETS_NONE, 0)
+local ui_death_sounds = CreateMultiControl(group_death, "Звуки при смерти", SOUND_PRESETS, {})
+if ui_death_sounds then
+    pcall(function() ui_death_sounds:Icon("\u{f714}") end)
+    pcall(function() ui_death_sounds:ToolTip("Выберите треки галочками для своей смерти. Если выбрано несколько, играет случайный из них.") end)
+end
 
 -- Правая колонка: 3. Победа команды (Victory / Трон)
 local group_win = tab_events:Create("Победа команды (Victory)", side_right)
@@ -136,31 +197,15 @@ local ui_on_win = group_win:Switch("Войс при сносе вражеско�
 ui_on_win:ToolTip("Воспроизводить триумфальный звук при уничтожении вражеского Ancient")
 
 local ui_win_mode = group_win:Combo("Режим звука Victory", SOUND_MODES, 0)
-ui_win_mode:ToolTip("Случайный: рандом из всех файлов папки sounds.\nОдин файл: всегда играет выбранный звук.\nПул: случайный выбор только из выбранных слотов ниже.")
+ui_win_mode:ToolTip("Случайный: рандом из всех файлов папки sounds.\nВыбранные: выбор одного или нескольких треков галочками из списка ниже.")
 
-local ui_win_file1 = group_win:Combo("Файл при победе", SOUND_PRESETS, 0)
-local ui_win_file2 = group_win:Combo("Пул: Доп. звук #2", SOUND_PRESETS_NONE, 0)
-local ui_win_file3 = group_win:Combo("Пул: Доп. звук #3", SOUND_PRESETS_NONE, 0)
-local ui_win_file4 = group_win:Combo("Пул: Доп. звук #4", SOUND_PRESETS_NONE, 0)
-
-local ui_win_chat = group_win:Switch("Писать 'GG WP' в общий чат", true, "\u{f086}")
-
--- Настройка видимости / активности слотов в зависимости от режима
-local function SetupModeCallback(mode_ctrl, s1, s2, s3, s4)
-    if mode_ctrl and mode_ctrl.SetCallback then
-        mode_ctrl:SetCallback(function()
-            local m = mode_ctrl:Get() or 0
-            if s1 and s1.Disabled then s1:Disabled(m == 0) end
-            if s2 and s2.Disabled then s2:Disabled(m ~= 2) end
-            if s3 and s3.Disabled then s3:Disabled(m ~= 2) end
-            if s4 and s4.Disabled then s4:Disabled(m ~= 2) end
-        end, true)
-    end
+local ui_win_sounds = CreateMultiControl(group_win, "Звуки при победе", SOUND_PRESETS, {})
+if ui_win_sounds then
+    pcall(function() ui_win_sounds:Icon("\u{f091}") end)
+    pcall(function() ui_win_sounds:ToolTip("Выберите треки галочками при победе команды. Если выбрано несколько, играет случайный из них.") end)
 end
 
-SetupModeCallback(ui_kill_mode, ui_kill_file1, ui_kill_file2, ui_kill_file3, ui_kill_file4)
-SetupModeCallback(ui_death_mode, ui_death_file1, ui_death_file2, ui_death_file3, ui_death_file4)
-SetupModeCallback(ui_win_mode, ui_win_file1, ui_win_file2, ui_win_file3, ui_win_file4)
+local ui_win_chat = group_win:Switch("Писать 'GG WP' в общий чат", true, "\u{f086}")
 
 -- Левая колонка: 4. Управление звуками
 local group_sound_manage = tab_events:Create("Файлы и Папка", side_left)
@@ -249,21 +294,81 @@ local ui_hero_laugh = group_taunt:Switch("Смех героя (dota_player_laugh
 local ui_hero_taunt = group_taunt:Switch("Таунт героя (dota_taunt)", false, "\u{f004}")
 
 -- ------------------------------------------------------------------------
+-- Динамическое скрытие неактивных элементов меню (API :Visible)
+-- ------------------------------------------------------------------------
+local function UpdateVisibility()
+    local main_on = ui_enable and ui_enable:Get()
+
+    -- 1. Kill секция
+    local kill_on = main_on and ui_on_kill and ui_on_kill:Get()
+    SetVisible(ui_on_kill, main_on)
+    SetVisible(ui_on_fb, kill_on)
+    SetVisible(ui_kill_mode, kill_on)
+    local kill_custom = kill_on and ui_kill_mode and (ui_kill_mode:Get() == 1)
+    SetVisible(ui_kill_sounds, kill_custom)
+    SetVisible(ui_cooldown, kill_on)
+
+    -- 2. Death секция
+    local death_on = main_on and ui_on_death and ui_on_death:Get()
+    SetVisible(ui_on_death, main_on)
+    SetVisible(ui_death_mode, death_on)
+    local death_custom = death_on and ui_death_mode and (ui_death_mode:Get() == 1)
+    SetVisible(ui_death_sounds, death_custom)
+
+    -- 3. Victory секция
+    local win_on = main_on and ui_on_win and ui_on_win:Get()
+    SetVisible(ui_on_win, main_on)
+    SetVisible(ui_win_mode, win_on)
+    local win_custom = win_on and ui_win_mode and (ui_win_mode:Get() == 1)
+    SetVisible(ui_win_sounds, win_custom)
+    SetVisible(ui_win_chat, win_on)
+
+    -- 4. Chat и насмешки
+    local chat_on = main_on and ui_chat_phrase and ui_chat_phrase:Get()
+    SetVisible(ui_chat_phrase, main_on)
+    SetVisible(ui_chat_all, chat_on)
+    SetVisible(ui_chat_custom, chat_on)
+    SetVisible(ui_hero_laugh, main_on)
+    SetVisible(ui_hero_taunt, main_on)
+end
+
+local function BindCallback(ctrl)
+    if ctrl and ctrl.SetCallback then
+        pcall(function()
+            ctrl:SetCallback(function()
+                UpdateVisibility()
+            end)
+        end)
+    end
+end
+
+BindCallback(ui_enable)
+BindCallback(ui_on_kill)
+BindCallback(ui_kill_mode)
+BindCallback(ui_on_death)
+BindCallback(ui_death_mode)
+BindCallback(ui_on_win)
+BindCallback(ui_win_mode)
+BindCallback(ui_chat_phrase)
+
+UpdateVisibility()
+
+-- ------------------------------------------------------------------------
 -- Вспомогательная логика выбора звука для событий
 -- ------------------------------------------------------------------------
 local function GetEventSound(event_type)
     local mode = 0
-    local s1, s2, s3, s4 = nil, nil, nil, nil
+    local multi_ctrl = nil
 
     if event_type == "kill" or event_type == "firstblood" then
         mode = (ui_kill_mode and ui_kill_mode:Get()) or 0
-        s1, s2, s3, s4 = ui_kill_file1, ui_kill_file2, ui_kill_file3, ui_kill_file4
+        multi_ctrl = ui_kill_sounds
     elseif event_type == "death" then
         mode = (ui_death_mode and ui_death_mode:Get()) or 0
-        s1, s2, s3, s4 = ui_death_file1, ui_death_file2, ui_death_file3, ui_death_file4
+        multi_ctrl = ui_death_sounds
     elseif event_type == "victory" then
         mode = (ui_win_mode and ui_win_mode:Get()) or 0
-        s1, s2, s3, s4 = ui_win_file1, ui_win_file2, ui_win_file3, ui_win_file4
+        multi_ctrl = ui_win_sounds
     end
 
     -- 0: Случайный из всей папки sounds
@@ -271,33 +376,19 @@ local function GetEventSound(event_type)
         return nil
     end
 
-    -- 1: Один конкретный звук
-    if mode == 1 and s1 then
-        local idx = (s1:Get() or 0) + 1
-        local file = SOUND_PRESETS[idx]
-        if file and file ~= "" and not file:find("^%(") then
-            return file
-        end
-        return nil
-    end
-
-    -- 2: Пул из выбранных звуков (рандом из слотов 1-4)
-    if mode == 2 then
+    -- 1: Выбранные галочками из выпадающего списка
+    if mode == 1 and multi_ctrl then
         local pool = {}
-        local function check(ctrl, list)
-            if ctrl then
-                local idx = (ctrl:Get() or 0) + 1
-                local item = list[idx]
-                if item and item ~= "" and not item:find("^%(") and item ~= "(Не выбран)" then
-                    table.insert(pool, item)
+        if multi_ctrl.ListEnabled then
+            local ok, list = pcall(function() return multi_ctrl:ListEnabled() end)
+            if ok and list and type(list) == "table" then
+                for _, item in ipairs(list) do
+                    if item and item ~= "" and not item:find("^%(") then
+                        table.insert(pool, item)
+                    end
                 end
             end
         end
-
-        check(s1, SOUND_PRESETS)
-        check(s2, SOUND_PRESETS_NONE)
-        check(s3, SOUND_PRESETS_NONE)
-        check(s4, SOUND_PRESETS_NONE)
 
         if #pool > 0 then
             return pool[math.random(1, #pool)]
@@ -336,36 +427,9 @@ RefreshSoundsList = function(callback)
             SOUND_PRESETS = { "(Папка sounds пуста)" }
         end
 
-        SOUND_PRESETS_NONE = { "(Не выбран)" }
-        for _, f in ipairs(new_list) do
-            table.insert(SOUND_PRESETS_NONE, f)
-        end
-
-        local function UpdateCombo(ctrl, items)
-            if ctrl and ctrl.Update then
-                pcall(function()
-                    local cur = ctrl:Get() or 0
-                    ctrl:Update(items)
-                    if cur >= #items then cur = 0 end
-                    ctrl:Set(cur)
-                end)
-            end
-        end
-
-        UpdateCombo(ui_kill_file1, SOUND_PRESETS)
-        UpdateCombo(ui_kill_file2, SOUND_PRESETS_NONE)
-        UpdateCombo(ui_kill_file3, SOUND_PRESETS_NONE)
-        UpdateCombo(ui_kill_file4, SOUND_PRESETS_NONE)
-
-        UpdateCombo(ui_death_file1, SOUND_PRESETS)
-        UpdateCombo(ui_death_file2, SOUND_PRESETS_NONE)
-        UpdateCombo(ui_death_file3, SOUND_PRESETS_NONE)
-        UpdateCombo(ui_death_file4, SOUND_PRESETS_NONE)
-
-        UpdateCombo(ui_win_file1, SOUND_PRESETS)
-        UpdateCombo(ui_win_file2, SOUND_PRESETS_NONE)
-        UpdateCombo(ui_win_file3, SOUND_PRESETS_NONE)
-        UpdateCombo(ui_win_file4, SOUND_PRESETS_NONE)
+        UpdateMultiControl(ui_kill_sounds, SOUND_PRESETS)
+        UpdateMultiControl(ui_death_sounds, SOUND_PRESETS)
+        UpdateMultiControl(ui_win_sounds, SOUND_PRESETS)
 
         if ui_sound_now_playing then
             pcall(function()
