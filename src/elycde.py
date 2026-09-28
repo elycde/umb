@@ -618,11 +618,12 @@ class ElycdeHandler(BaseHTTPRequestHandler):
                     
                     opened = False
                     try:
-                        os.startfile(SOUNDS_DIR)
+                        ps_cmd = f'(New-Object -ComObject Shell.Application).Explore("{SOUNDS_DIR}")'
+                        subprocess.Popen(['powershell.exe', '-WindowStyle', 'Hidden', '-Command', ps_cmd], shell=False)
                         opened = True
-                    except Exception as e_start:
-                        log_debug(f"os.startfile error: {e_start}")
-                    
+                    except Exception as e_ps:
+                        log_debug(f"powershell com error: {e_ps}")
+
                     if not opened:
                         try:
                             subprocess.Popen(f'explorer.exe "{SOUNDS_DIR}"', shell=True)

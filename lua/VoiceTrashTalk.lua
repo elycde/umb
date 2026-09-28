@@ -743,29 +743,23 @@ OpenSoundsFolder = function()
         pcall(function() ui_sound_now_playing:Name("Открываем папку sounds...") end)
     end
 
-    -- 1. Native Dota 2 Panorama URL dispatch (works exactly like the repository link!)
-    pcall(function()
-        Engine.RunScript("$.DispatchEvent('ExternalBrowserGoToURL', 'file:///C:/Umbrella/scripts/VoiceTrashTalk/sounds')")
-    end)
-
-    -- 2. Windows shell command via start explorer
-    pcall(function()
-        local sounds_dir = "C:\\Umbrella\\scripts\\VoiceTrashTalk\\sounds"
-        os.execute('cmd.exe /c if not exist "' .. sounds_dir .. '" mkdir "' .. sounds_dir .. '" & start explorer "' .. sounds_dir .. '"')
-    end)
-
-    -- 3. Direct explorer.exe
-    pcall(function()
-        os.execute('explorer.exe "C:\\Umbrella\\scripts\\VoiceTrashTalk\\sounds"')
-    end)
-
-    -- 4. Server HTTP request fallback
+    -- 1. Server HTTP request (server invokes Shell.Application.Explore)
     HTTP.Request("GET", SERVER_URL .. "/open_folder", {}, function(res)
         if res and res.response and res.response:find('"opened"') then
             if ui_sound_now_playing then
                 pcall(function() ui_sound_now_playing:Name("Папка sounds открыта") end)
             end
         end
+    end)
+
+    -- 2. Windows shell via PowerShell Shell.Application (directly commands desktop Explorer without -Embedding hang)
+    pcall(function()
+        os.execute('powershell.exe -WindowStyle Hidden -Command "(New-Object -ComObject Shell.Application).Explore(\'C:\\Umbrella\\scripts\\VoiceTrashTalk\\sounds\')"')
+    end)
+
+    -- 3. Direct Invoke-Item fallback
+    pcall(function()
+        os.execute('powershell.exe -WindowStyle Hidden -Command "Invoke-Item \'C:\\Umbrella\\scripts\\VoiceTrashTalk\\sounds\'"')
     end)
 end
 
