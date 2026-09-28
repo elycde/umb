@@ -54,8 +54,8 @@ local SOUND_PRESETS = {
 }
 
 local SOUND_MODES = {
-    "🎲 Случайный из всех",
-    "☑️ Выбранные из списка"
+    "Случайный из всех",
+    "Выбранные из списка"
 }
 
 local function SetVisible(ctrl, show)
@@ -205,20 +205,20 @@ if ui_win_sounds then
     pcall(function() ui_win_sounds:ToolTip("Выберите треки галочками при победе команды. Если выбрано несколько, играет случайный из них.") end)
 end
 
-local ui_win_chat = group_win:Switch("Писать 'GG WP' в общий чат", true, "\u{f086}")
-
 -- Левая колонка: 4. Управление звуками
 local group_sound_manage = tab_events:Create("Файлы и Папка", side_left)
 local ui_sound_now_playing = group_sound_manage:Label("Сейчас играет: Нет")
 
-local ui_btn_refresh_sounds = group_sound_manage:Button("🔄 Обновить список звуков", function()
+local ui_btn_refresh_sounds = group_sound_manage:Button("Обновить список звуков", function()
     RefreshSoundsList()
 end)
+ui_btn_refresh_sounds:Icon("\u{f2f9}")
 ui_btn_refresh_sounds:ToolTip("Сканирует папку sounds и обновляет списки файлов во всех селекторах")
 
-local ui_btn_open_folder = group_sound_manage:Button("📂 Открыть папку sounds", function()
+local ui_btn_open_folder = group_sound_manage:Button("Открыть папку sounds", function()
     OpenSoundsFolder()
 end)
+ui_btn_open_folder:Icon("\u{f07b}")
 ui_btn_open_folder:ToolTip("Открывает папку sounds в Проводнике Windows для добавления своих треков")
 
 -- ------------------------------------------------------------------------
@@ -285,9 +285,17 @@ ui_btn_stop:ToolTip("Немедленно глушит звук и отпуск�
 -- TAB 3: Чат и Насмешки
 -- ------------------------------------------------------------------------
 local group_chat = tab_chat:Create("Текстовый чат при килле", side_left)
-local ui_chat_phrase = group_chat:Switch("Писать фразу в чат", true, "\u{f086}")
+local ui_chat_phrase = group_chat:Switch("Писать фразу при убийстве", true, "\u{f086}")
 local ui_chat_all = group_chat:Switch("В общий чат (All Chat)", true, "\u{f0ac}")
-local ui_chat_custom = group_chat:Input("Своя фраза (пусто = случайная)", "")
+local ui_chat_custom = group_chat:Input("Фраза при килле (пусто = случайная)", "")
+
+local group_win_chat = tab_chat:Create("Текстовый чат при победе", side_left)
+local ui_win_chat = group_win_chat:Switch("Писать фразу при победе", true, "\u{f086}")
+ui_win_chat:ToolTip("Отправляет фразу в чат при уничтожении вражеского трона")
+local ui_win_chat_all = group_win_chat:Switch("В общий чат (All Chat)", true, "\u{f0ac}")
+ui_win_chat_all:ToolTip("Включено: say (видят все). Выключено: say_team (только союзники).")
+local ui_win_chat_custom = group_win_chat:Input("Фраза при победе", "GG WP")
+ui_win_chat_custom:ToolTip("Текст сообщения при сносе трона")
 
 local group_taunt = tab_chat:Create("Насмешки героя", side_right)
 local ui_hero_laugh = group_taunt:Switch("Смех героя (dota_player_laugh)", true, "\u{f118}")
@@ -321,13 +329,18 @@ local function UpdateVisibility()
     SetVisible(ui_win_mode, win_on)
     local win_custom = win_on and ui_win_mode and (ui_win_mode:Get() == 1)
     SetVisible(ui_win_sounds, win_custom)
-    SetVisible(ui_win_chat, win_on)
 
     -- 4. Chat и насмешки
     local chat_on = main_on and ui_chat_phrase and ui_chat_phrase:Get()
     SetVisible(ui_chat_phrase, main_on)
     SetVisible(ui_chat_all, chat_on)
     SetVisible(ui_chat_custom, chat_on)
+
+    local win_chat_on = main_on and ui_win_chat and ui_win_chat:Get()
+    SetVisible(ui_win_chat, main_on)
+    SetVisible(ui_win_chat_all, win_chat_on)
+    SetVisible(ui_win_chat_custom, win_chat_on)
+
     SetVisible(ui_hero_laugh, main_on)
     SetVisible(ui_hero_taunt, main_on)
 end
@@ -350,6 +363,7 @@ BindCallback(ui_death_mode)
 BindCallback(ui_on_win)
 BindCallback(ui_win_mode)
 BindCallback(ui_chat_phrase)
+BindCallback(ui_win_chat)
 
 UpdateVisibility()
 
@@ -460,13 +474,13 @@ end
 
 OpenSoundsFolder = function()
     if ui_sound_now_playing then
-        pcall(function() ui_sound_now_playing:Name("📂 Открываем папку sounds...") end)
+        pcall(function() ui_sound_now_playing:Name("Открываем папку sounds...") end)
     end
 
     HTTP.Request("GET", SERVER_URL .. "/open_folder", {}, function(res)
         if res and res.response and res.response:find('"opened"') then
             if ui_sound_now_playing then
-                pcall(function() ui_sound_now_playing:Name("✅ Папка sounds открыта") end)
+                pcall(function() ui_sound_now_playing:Name("Папка sounds открыта") end)
             end
         end
     end)
@@ -552,7 +566,12 @@ PlayVoiceSound = function(event_type, test_mode_flag)
         end
     elseif event_type == "victory" and not is_test then
         if ui_win_chat and ui_win_chat:Get() then
-            Engine.ExecuteCommand('say "GG WP"')
+            local phrase = (ui_win_chat_custom and ui_win_chat_custom:Get()) or ""
+            if phrase == "" then
+                phrase = "GG WP"
+            end
+            local channel = (ui_win_chat_all and ui_win_chat_all:Get()) and "say" or "say_team"
+            Engine.ExecuteCommand(channel .. ' "' .. phrase .. '"')
         end
     end
 end
@@ -648,6 +667,11 @@ function VoiceTrashTalk.OnEntityKilled(data)
             has_played_win = true
             if ui_on_win and ui_on_win:Get() then
                 PlayVoiceSound("victory", false)
+            elseif ui_win_chat and ui_win_chat:Get() then
+                local phrase = (ui_win_chat_custom and ui_win_chat_custom:Get()) or ""
+                if phrase == "" then phrase = "GG WP" end
+                local channel = (ui_win_chat_all and ui_win_chat_all:Get()) and "say" or "say_team"
+                Engine.ExecuteCommand(channel .. ' "' .. phrase .. '"')
             end
             return
         end
