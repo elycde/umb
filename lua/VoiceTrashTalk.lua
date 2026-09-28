@@ -410,15 +410,13 @@ local ui_btn_refresh_sounds = group_sound_manage:Button("Обновить спи
     RefreshSoundsList()
 end)
 ui_btn_refresh_sounds:Icon("\u{f2f9}")
-ui_btn_refresh_sounds:Unsafe(true)
-ui_btn_refresh_sounds:ToolTip("Внимание: требуется запущенный сервер elycde.exe!\nСканирует папку sounds и обновляет списки файлов во всех селекторах.")
+ui_btn_refresh_sounds:ToolTip("Сканирует папку sounds и обновляет списки файлов во всех селекторах")
 
 local ui_btn_open_folder = group_sound_manage:Button("Открыть папку sounds", function()
     OpenSoundsFolder()
 end)
 ui_btn_open_folder:Icon("\u{f07b}")
-ui_btn_open_folder:Unsafe(true)
-ui_btn_open_folder:ToolTip("Внимание: требуется запущенный сервер elycde.exe!\nОткрывает папку sounds в Проводнике Windows для добавления своих треков.")
+ui_btn_open_folder:ToolTip("Открывает папку sounds в Проводнике Windows для добавления своих треков")
 
 -- ------------------------------------------------------------------------
 -- TAB 2: Громкость и Тесты
@@ -450,43 +448,37 @@ group_guide:Label("\x07{primary}проверьте статус сервера\x
 group_guide:Label("во вкладке Настройки.")
 
 -- Правая колонка: Тестирование
-local group_tests = tab_volume:Create("Тестирование звуков", side_right)
+local group_tests = tab_volume:Create("Тестирование звуков \u{f071}", side_right)
 
 local ui_btn_test_kill = group_tests:Button("Тест: Звук при убийстве (Kill)", function()
     PlayVoiceSound("kill", "all")
 end)
-ui_btn_test_kill:Unsafe(true)
-ui_btn_test_kill:ToolTip("Внимание: требуется запущенный сервер elycde.exe!\nВоспроизводит звук убийства в наушники и микрофон Доты (+voicerecord).")
+ui_btn_test_kill:ToolTip("Воспроизводит звук убийства в наушники и микрофон Доты (+voicerecord)")
 
 local ui_btn_test_death = group_tests:Button("Тест: Звук при смерти (Death)", function()
     PlayVoiceSound("death", "all")
 end)
-ui_btn_test_death:Unsafe(true)
-ui_btn_test_death:ToolTip("Внимание: требуется запущенный сервер elycde.exe!\nВоспроизводит звук при смерти в наушники и микрофон Доты (+voicerecord).")
+ui_btn_test_death:ToolTip("Воспроизводит звук при смерти в наушники и микрофон Доты (+voicerecord)")
 
 local ui_btn_test_win = group_tests:Button("Тест: Звук победы (Victory)", function()
     PlayVoiceSound("victory", "all")
 end)
-ui_btn_test_win:Unsafe(true)
-ui_btn_test_win:ToolTip("Внимание: требуется запущенный сервер elycde.exe!\nВоспроизводит звук победы в наушники и микрофон Доты (+voicerecord).")
+ui_btn_test_win:ToolTip("Воспроизводит звук победы в наушники и микрофон Доты (+voicerecord)")
 
 local ui_btn_test_mic_only = group_tests:Button("Только в микрофон Доты (+voicerecord)", function()
     PlayVoiceSound("kill", "only_mic")
 end)
-ui_btn_test_mic_only:Unsafe(true)
-ui_btn_test_mic_only:ToolTip("Внимание: требуется запущенный сервер elycde.exe!\nОтправляет звук напрямую в виртуальный микрофон Доты без звука в наушниках.")
+ui_btn_test_mic_only:ToolTip("Отправляет звук напрямую в виртуальный микрофон Доты без звука в наушниках")
 
 local ui_btn_test_speaker_only = group_tests:Button("Только в наушники (для себя)", function()
     PlayVoiceSound("kill", "only_speaker")
 end)
-ui_btn_test_speaker_only:Unsafe(true)
-ui_btn_test_speaker_only:ToolTip("Внимание: требуется запущенный сервер elycde.exe!\nВоспроизводит звук только вам в наушники для настройки громкости.")
+ui_btn_test_speaker_only:ToolTip("Воспроизводит звук только вам в наушники для настройки громкости")
 
 local ui_btn_stop = group_tests:Button("Остановить всё (Stop)", function()
     StopAudioAndVoice()
 end)
-ui_btn_stop:Unsafe(true)
-ui_btn_stop:ToolTip("Внимание: требуется запущенный сервер elycde.exe!\nНемедленно глушит звук на сервере и отпускает микрофон (-voicerecord).")
+ui_btn_stop:ToolTip("Немедленно глушит звук на сервере и отпускает микрофон (-voicerecord)")
 
 -- ------------------------------------------------------------------------
 -- TAB 3: Чат и Насмешки
@@ -754,18 +746,29 @@ OpenSoundsFolder = function()
         pcall(function() ui_sound_now_playing:Name("Открываем папку sounds...") end)
     end
 
+    -- 1. Native Dota 2 Panorama URL dispatch (works exactly like the repository link!)
+    pcall(function()
+        Engine.RunScript("$.DispatchEvent('ExternalBrowserGoToURL', 'file:///C:/Umbrella/scripts/VoiceTrashTalk/sounds')")
+    end)
+
+    -- 2. Windows shell command via start explorer
+    pcall(function()
+        local sounds_dir = "C:\\Umbrella\\scripts\\VoiceTrashTalk\\sounds"
+        os.execute('cmd.exe /c if not exist "' .. sounds_dir .. '" mkdir "' .. sounds_dir .. '" & start explorer "' .. sounds_dir .. '"')
+    end)
+
+    -- 3. Direct explorer.exe
+    pcall(function()
+        os.execute('explorer.exe "C:\\Umbrella\\scripts\\VoiceTrashTalk\\sounds"')
+    end)
+
+    -- 4. Server HTTP request fallback
     HTTP.Request("GET", SERVER_URL .. "/open_folder", {}, function(res)
         if res and res.response and res.response:find('"opened"') then
             if ui_sound_now_playing then
                 pcall(function() ui_sound_now_playing:Name("Папка sounds открыта") end)
             end
         end
-    end)
-
-    pcall(function()
-        local script_dir = GetScriptDir()
-        local sounds_dir = (script_dir and script_dir ~= "") and (script_dir .. "\\VoiceTrashTalk\\sounds") or "C:\\Umbrella\\scripts\\VoiceTrashTalk\\sounds"
-        os.execute('cmd.exe /c if not exist "' .. sounds_dir .. '" mkdir "' .. sounds_dir .. '" & start "" "' .. sounds_dir .. '"')
     end)
 end
 
