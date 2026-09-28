@@ -62,7 +62,9 @@ end)
 ui_btn_update:ToolTip("Проверяет и скачивает обновления elycde.exe и всех скриптов из папки lua/ с GitHub")
 
 local ui_btn_repo = group_update:Button("🌐 Открыть GitHub репозиторий", function()
-    pcall(function() os.execute('start ' .. GITHUB_REPO) end)
+    HTTP.Request("GET", SERVER_URL .. "/open_url?url=" .. GITHUB_REPO, {}, function() end)
+    pcall(function() os.execute('cmd.exe /c start "" "' .. GITHUB_REPO .. '"') end)
+    pcall(function() os.execute('explorer "' .. GITHUB_REPO .. '"') end)
 end)
 ui_btn_repo:ToolTip("Открыть страницу https://github.com/elycde/umb в браузере")
 

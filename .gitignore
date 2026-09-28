@@ -5,6 +5,7 @@ __pycache__/
 *.log
 *.new
 updater.bat
+config.json
 build/
 dist/
 *.spec.bak

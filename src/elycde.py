@@ -537,6 +537,20 @@ class ElycdeHandler(BaseHTTPRequestHandler):
                     self.send_json({"status": "error", "message": str(e)}, code=500)
                 return
 
+            elif path == "/open_url":
+                target_url = query.get("url", [""])[0]
+                if target_url:
+                    import webbrowser
+                    try:
+                        webbrowser.open(target_url)
+                        self.send_json({"status": "opened", "url": target_url})
+                    except Exception as e:
+                        log_debug(f"open_url error: {e}")
+                        self.send_json({"status": "error", "message": str(e)}, code=500)
+                else:
+                    self.send_json({"status": "error", "message": "Missing url"}, code=400)
+                return
+
             elif path in ("/kill", "/shutdown"):
                 self.send_json({"status": "shutting_down"})
                 player.stop()

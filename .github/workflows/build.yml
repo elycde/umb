@@ -57,7 +57,7 @@ jobs:
             
             ### Included:
             * `elycde.exe` — standalone bundle installer & audio companion for Umbrella Dota 2
-            * Syncs scripts from `lua/` (`MapDrawer.lua`, `VoiceTrashTalk.lua`)
+            * Syncs scripts from `lua/` (`MapDrawer.lua`, `VoiceTrashTalk.lua`, `Visuals.lua`, `Settings.lua`)
           files: src/dist/elycde.exe
           make_latest: true
         env:
