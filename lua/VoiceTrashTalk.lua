@@ -38,6 +38,13 @@ local next_ping_time = 0
 local has_played_win = false
 
 local function GetScriptDir()
+    local umbrella_dir = "C:\\Umbrella\\scripts"
+    local f = io.open(umbrella_dir .. "\\VoiceTrashTalk.lua", "r")
+    if f then
+        f:close()
+        return umbrella_dir
+    end
+
     local ok, info = pcall(function() return debug.getinfo(1, "S") end)
     if ok and info and type(info.source) == "string" then
         local src = info.source
@@ -46,7 +53,7 @@ local function GetScriptDir()
         local dir = src:match("^(.*)\\[^\\]+$")
         if dir and dir ~= "" then return dir end
     end
-    return "scripts"
+    return umbrella_dir
 end
 
 local function LoadConfigTable()
